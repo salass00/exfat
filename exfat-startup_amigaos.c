@@ -31,7 +31,9 @@ const char *EXEC_NAME = "exfat-handler";
 struct ExecBase *SysBase;
 struct DOSBase *DOSBase;
 struct UtilityBase *UtilityBase;
+#ifdef __AROS__
 struct Library *aroscbase;
+#endif
 struct Library *FileSysBoxBase;
 
 #ifndef ZERO
@@ -100,8 +102,10 @@ static int startup(void) {
 	UtilityBase = (struct UtilityBase *)OpenLibrary((CONST_STRPTR)"utility.library", MIN_OS_VERSION);
 	if (UtilityBase == NULL) goto end;
 
+#ifdef __AROS__
 	aroscbase = OpenLibrary((CONST_STRPTR)"arosc.library", MIN_AROSC_VERSION);
 	if (aroscbase == NULL) goto end;
+#endif
 
 	FileSysBoxBase = OpenLibrary((CONST_STRPTR)"filesysbox.library", MIN_FBX_VERSION);
 	if (FileSysBoxBase == NULL) goto end;
@@ -115,7 +119,9 @@ end:
 
 	CloseLibrary(FileSysBoxBase);
 
+#ifdef __AROS__
 	CloseLibrary(aroscbase);
+#endif
 
 	CloseLibrary((struct Library *)UtilityBase);
 
