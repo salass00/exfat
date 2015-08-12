@@ -67,7 +67,17 @@
 #define EXFAT_LITTLE_ENDIAN _LITTLE_ENDIAN
 #define EXFAT_BIG_ENDIAN _BIG_ENDIAN
 
-#else 
+#elif defined(AMIGA)
+
+#include <byteswap.h>
+#define exfat_bswap16(x) bswap_16(x)
+#define exfat_bswap32(x) bswap_32(x)
+#define exfat_bswap64(x) bswap_64(x)
+#define EXFAT_LITTLE_ENDIAN 1234
+#define EXFAT_BIG_ENDIAN 4321
+#define EXFAT_BYTE_ORDER EXFAT_BIG_ENDIAN
+
+#else
 #error Unknown platform
 #endif
 

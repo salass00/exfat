@@ -33,7 +33,11 @@ struct exfat_dev* exfat_open(const char* spec, enum exfat_mode mode)
 	memset(dev, 0, sizeof(*dev));
 
 	dev->name = spec;
+#ifdef __AROS__
 	if (strcmp(EXEC_NAME, "exfat-handler") == 0) {
+#else
+	if (strcmp(EXEC_NAME, "exFATFileSystem") == 0) {
+#endif
 		dev->diskio = DIO_Setup((CONST_STRPTR)spec, NULL);
 	} else {
 		dev->diskio = DIO_SetupTags((CONST_STRPTR)spec,

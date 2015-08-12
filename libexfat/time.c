@@ -152,7 +152,7 @@ void exfat_tzset(void)
 {
 	time_t now;
 
-#ifndef __AROS__
+#if !defined(__AROS__) && !defined(AMIGA)
 	tzset();
 #endif
 	now = time(NULL);

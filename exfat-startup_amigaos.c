@@ -22,7 +22,11 @@
 
 static const char USED verstag[] = VERSTAG;
 
+#ifdef __AROS__
 const char *EXEC_NAME = "exfat-handler";
+#else
+const char *EXEC_NAME = "exFATFileSystem";
+#endif
 
 #define MIN_OS_VERSION    39
 #define MIN_AROSC_VERSION 41

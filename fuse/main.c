@@ -21,7 +21,7 @@
 */
 
 #define FUSE_USE_VERSION 26
-#ifdef __AROS__
+#if defined(__AROS__) || defined(AMIGA)
 #include <dos/dos.h>
 #include <proto/exec.h>
 #include <proto/filesysbox.h>
@@ -48,7 +48,7 @@ static struct fuse_context *_fuse_context_;
 	#error FUSE 2.6 or later is required
 #endif
 
-#ifdef __AROS__
+#if defined(__AROS__) || defined(AMIGA)
 const char* default_options = "ro_fallback,allow_other,blkdev,big_writes,"
 		"defer_permissions,noatime";
 #else
@@ -56,7 +56,7 @@ const char* default_options = "ro_fallback,allow_other,blkdev,big_writes,"
 		"defer_permissions";
 #endif
 
-#ifdef __AROS__
+#if defined(__AROS__) || defined(AMIGA)
 struct exfat_mount_data {
 	char* options;
 	char* device;
@@ -347,7 +347,7 @@ static int fuse_exfat_statfs(const char* path, struct statvfs* sfs)
 	sfs->f_favail = sfs->f_bfree >> ef.sb->spc_bits;
 	sfs->f_ffree = sfs->f_bavail;
 
-#ifdef __AROS__
+#if defined(__AROS__) || defined(AMIGA)
 	/* flags */
 	sfs->f_flag = 0;
 	if (ef.ro)
@@ -357,7 +357,7 @@ static int fuse_exfat_statfs(const char* path, struct statvfs* sfs)
 	return 0;
 }
 
-#ifndef __AROS__
+#if !defined(__AROS__) && !defined(AMIGA)
 static void* fuse_exfat_init(struct fuse_conn_info* fci)
 {
 	exfat_debug("[%s]", __func__);
@@ -368,7 +368,7 @@ static void* fuse_exfat_init(struct fuse_conn_info* fci)
 }
 #endif
 
-#ifdef __AROS__
+#if defined(__AROS__) || defined(AMIGA)
 static void* fuse_exfat_init(struct fuse_conn_info* fci)
 {
 	struct exfat_mount_data* md;
@@ -401,7 +401,7 @@ static void fuse_exfat_destroy(void* unused)
 	exfat_unmount(&ef);
 }
 
-#ifdef __AROS__
+#if defined(__AROS__) || defined(AMIGA)
 
 #include "mkfs/mkexfat.h"
 #include "mkfs/vbr.h"
@@ -574,9 +574,9 @@ int fuse_exfat_format(const char *label, ULONG dostype) {
 int fuse_exfat_relabel(const char *label) {
 	return exfat_set_label(&ef, label);
 }
-#endif
+#endif /* defined(__AROS__) || defined(AMIGA) */
 
-#ifndef __AROS__
+#if !defined(__AROS__) && !defined(AMIGA)
 static void usage(const char* prog)
 {
 	fprintf(stderr, "Usage: %s [-d] [-o options] [-V] <device> <dir>\n", prog);
@@ -607,7 +607,7 @@ static struct fuse_operations fuse_exfat_ops =
 	.statfs		= fuse_exfat_statfs,
 	.init		= fuse_exfat_init,
 	.destroy	= fuse_exfat_destroy,
-#ifdef __AROS__
+#if defined(__AROS__) || defined(AMIGA)
 	.format		= fuse_exfat_format,
 	.relabel	= fuse_exfat_relabel
 #endif
@@ -640,7 +640,7 @@ static char* add_option(char* options, const char* name, const char* value)
 	return options;
 }
 
-#ifndef __AROS__
+#if !defined(__AROS__) && !defined(AMIGA)
 static char* add_user_option(char* options)
 {
 	struct passwd* pw;
@@ -663,16 +663,6 @@ static char* add_blksize_option(char* options, long cluster_size)
 	long page_size = 0;
 	char blksize[20];
 
-#ifdef __AROS__
-	uint32 page_size_bits = 0, i;
-	IExec->GetCPUInfoTags(GCIT_ExecPageSize, &page_size_bits, TAG_END);
-	for (i = 0; i < 32; i++) {
-		if (page_size_bits & (1UL << i)) {
-			page_size = (1UL << i);
-			break;
-		}
-	}
-#endif
 #ifdef _SC_PAGESIZE
 	page_size = sysconf(_SC_PAGESIZE);
 #endif
@@ -698,9 +688,9 @@ static char* add_fuse_options(char* options, const char* spec)
 
 	return options;
 }
-#endif
+#endif /* !defined(__AROS__) && !defined(AMIGA) */
 
-#ifndef __AROS__
+#if !defined(__AROS__) && !defined(AMIGA)
 int main(int argc, char* argv[])
 {
 	struct fuse_args mount_args = FUSE_ARGS_INIT(0, NULL);
@@ -847,9 +837,9 @@ int main(int argc, char* argv[])
 	fuse_destroy(fh);
 	return 0;
 }
-#endif
+#endif /* !defined(__AROS__) && !defined(AMIGA) */
 
-#ifdef __AROS__
+#if defined(__AROS__) || defined(AMIGA)
 int exfat_main(struct Message *msg) {
 	int err;
 	const char* device = NULL;
@@ -918,5 +908,5 @@ err_out:
 
 	return err;
 }
-#endif
+#endif /* defined(__AROS__) || defined(AMIGA) */
 

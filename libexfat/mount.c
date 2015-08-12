@@ -153,7 +153,7 @@ static int prepare_super_block(const struct exfat* ef)
 	if (ef->ro)
 		return 0;
 
-#ifdef __AROS__
+#if defined(__AROS__) || defined(AMIGA)
 	return 0;
 #else
 	ef->sb->volume_state = cpu_to_le16(

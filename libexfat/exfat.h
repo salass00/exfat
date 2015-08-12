@@ -34,7 +34,7 @@
 #include "exfatfs.h"
 #include "version.h"
 
-#ifdef __AROS__
+#if defined(__AROS__) || defined(AMIGA)
 #include <libraries/filesysbox.h>
 #endif
 
