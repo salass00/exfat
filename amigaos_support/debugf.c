@@ -1,13 +1,13 @@
 #include <debugf.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <proto/arossupport.h>
+#include <clib/debug_protos.h>
 
 int vdebugf(const char *fmt, va_list args) {
 	char buffer[256];
 
 	int retval = vsnprintf(buffer, sizeof(buffer), fmt, args);
-	kprintf("%s", buffer);
+	KPutStr((CONST_STRPTR)buffer);
 
 	return retval;
 }

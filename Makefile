@@ -1,6 +1,10 @@
-CC     := i386-aros-gcc
-AR     := i386-aros-ar
-RANLIB := i386-aros-ranlib
+CPU  := i386
+OS   := aros
+HOST := $(CPU)-$(OS)
+
+CC     := $(HOST)-gcc
+AR     := $(HOST)-ar
+RANLIB := $(HOST)-ranlib
 RM     := rm -f
 
 V ?= /V
@@ -10,7 +14,7 @@ CFLAGS  := -O2 -s -Wall -Werror -Wwrite-strings -std=gnu99 \
 	-I../filesysbox/include -I. -I./libexfat -I./libdiskio \
 	-I./amigaos_support/include -DID_EXFAT_DISK=0x46415458
 LDFLAGS := -nostartfiles
-LIBS    := 
+LIBS    := -ldebug
 
 LIBEXFAT   := libexfat.a
 LIBDISKIO  := libdiskio.a

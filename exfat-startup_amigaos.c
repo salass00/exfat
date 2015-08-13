@@ -46,8 +46,8 @@ struct Library *FileSysBoxBase;
 
 //#define DEBUG
 #ifdef DEBUG
-	#include <proto/arossupport.h>
-	#define DEBUGF(str,args...) kprintf(str, ## args)
+	#include <debugf.h>
+	#define DEBUGF(str,args...) debugf(str, ## args)
 #else
 	#define DEBUGF(str,args...)
 #endif
@@ -72,7 +72,7 @@ static int startup(void) {
 	SysBase = *(struct ExecBase **)4;
 #endif
 
-	DEBUGF("exfat_startup: got execbase %p\n", SysBase);
+	DEBUGF("exfat_startup: got execbase %#p\n", SysBase);
 
 	thisproc = (struct Process *)FindTask(NULL);
 
@@ -83,7 +83,7 @@ static int startup(void) {
 
 	struct MsgPort *port = &thisproc->pr_MsgPort;
 
-	DEBUGF("exfat_startup: waiting at port %p\n", port);
+	DEBUGF("exfat_startup: waiting at port %#p\n", port);
 
 	WaitPort(port);
 	struct Message *msg = GetMsg(port);
@@ -96,7 +96,7 @@ static int startup(void) {
 		return rc;
 	}
 
-	DEBUGF("exfat_startup: got msg %p\n", msg);
+	DEBUGF("exfat_startup: got msg %#p\n", msg);
 
 	if (!setup_malloc()) goto end;
 

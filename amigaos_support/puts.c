@@ -1,17 +1,13 @@
 #include <stdio.h>
 #include <string.h>
-#include <proto/arossupport.h>
+#include <clib/debug_protos.h>
 
-static int debugputs(const char *str) {
-	kprintf("%s", str);
+int puts(const char *str) {
+	KPutStr((CONST_STRPTR)str);
 	return strlen(str);
 }
 
-int puts(const char *str) {
-	return debugputs(str);
-}
-
 int fputs(const char *str, FILE *s) {
-	return debugputs(str);
+	return puts(str);
 }
 
