@@ -58,7 +58,7 @@ static inline uint64_t bswap_64(uint64_t val) {
 
 static inline uint16_t bswap_16(uint16_t val) {
 	__asm__("rolw #8,%0"
-		: "=r" (val)
+		: "=d" (val)
 		:  "0" (val));
 	return val;
 }
@@ -67,7 +67,7 @@ static inline uint32_t bswap_32(uint32_t val) {
 	__asm__("rolw #8,%0\n\t"
 		"swap %0\n\t"
 		"rolw #8,%0"
-		: "=r" (val)
+		: "=d" (val)
 		: "0" (val));
 	return val;
 }
