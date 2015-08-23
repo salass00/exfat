@@ -36,7 +36,7 @@ static struct MinNode *MergeLists(struct MinNode *head, int size,
 	CompareNodesFunc cmpfunc)
 {
 	struct MinNode *head2;
-	struct MinNode *tail;
+	struct MinNode *tail = NULL;
 	struct MinNode *node;
 	struct MinNode *node2;
 	struct MinNode *pred;

@@ -21,6 +21,7 @@
 
 #include "diskio.h"
 #include <exec/errors.h>
+#include <exec/interrupts.h>
 #include <devices/trackdisk.h>
 #include <devices/newstyle.h>
 #include <proto/exec.h>
@@ -28,10 +29,31 @@
 #include <proto/utility.h>
 #include <proto/filesysbox.h>
 #include <string.h>
+#include <stdarg.h>
 
 //#define DEBUG
 //#define DISABLE_BLOCK_CACHE
 #define DISABLE_DOSTYPE_CHECK
+
+#ifndef NEWLIST
+#define NEWLIST(list) \
+	do { \
+		((struct List *)(list))->lh_Head = (struct Node *)&((struct List *)(list))->lh_Tail; \
+		((struct List *)(list))->lh_Tail = NULL; \
+		((struct List *)(list))->lh_TailPred = (struct Node *)&((struct List *)(list))->lh_Head; \
+	} while (0)
+#endif
+
+#ifndef IsMinListEmpty
+#define IsMinListEmpty(list) IsListEmpty((struct List *)list)
+#endif
+
+#ifndef TD_READ64
+#define TD_READ64	24
+#define TD_WRITE64	25
+#define TD_SEEK64	26
+#define TD_FORMAT64	27
+#endif
 
 /* debugf.c */
 int debugf(const char *fmt, ...);

@@ -17,6 +17,7 @@
  */
 
 #include "diskio_internal.h"
+#include <dos/filehandler.h>
 
 struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
 	DEBUGF("DIO_Setup('%s', %#p)\n", name, tags);
@@ -232,4 +233,10 @@ cleanup:
 	DEBUGF("DIO_Setup failed (error: %d)\n", error);
 	return NULL;
 }
+
+#ifndef __AROS__
+struct DiskIO *DIO_SetupTags(CONST_STRPTR name, Tag tag1, ...) {
+	return DIO_Setup(name, (const struct TagItem *)&tag1);
+}
+#endif
 

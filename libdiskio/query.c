@@ -69,3 +69,9 @@ void DIO_Query(struct DiskIO *dio, const struct TagItem *tags) {
 	}
 }
 
+#ifndef __AROS__
+void DIO_QueryTags(struct DiskIO *dio, Tag tag1, ...) {
+	DIO_Query(dio, (const struct TagItem *)&tag1);
+}
+#endif
+

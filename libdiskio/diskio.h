@@ -23,10 +23,20 @@
 #include <utility/tagitem.h>
 #endif
 
+#ifdef __AROS__
 #include <aros/preprocessor/variadic/cast2iptr.hpp>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#if !defined(__AROS__) && !defined(AROS_TYPES_DEFINED)
+#define AROS_TYPES_DEFINED
+typedef ULONG              IPTR;
+typedef LONG               SIPTR;
+typedef unsigned long long UQUAD;
+typedef signed long long   QUAD;
 #endif
 
 struct DiskIO; /* This is a library private structure, do not touch! */
@@ -76,6 +86,7 @@ int DIO_ReadBytes(struct DiskIO *dio, UQUAD offset, APTR buffer, ULONG bytes);
 int DIO_WriteBytes(struct DiskIO *dio, UQUAD offset, CONST_APTR buffer, ULONG bytes);
 int DIO_FlushIOCache(struct DiskIO *dio);
 
+#ifdef __AROS__
 #define DIO_SetupTags(dio, ...) \
 ({ \
 	DIO_Setup((dio), (struct TagItem *)(IPTR []){ AROS_PP_VARIADIC_CAST2IPTR(__VA_ARGS__) }); \
@@ -84,6 +95,10 @@ int DIO_FlushIOCache(struct DiskIO *dio);
 ({ \
 	DIO_Query((dio), (struct TagItem *)(IPTR []){ AROS_PP_VARIADIC_CAST2IPTR(__VA_ARGS__) }); \
 })
+#else
+struct DiskIO *DIO_SetupTags(CONST_STRPTR name, Tag tag1, ...);
+void DIO_QueryTags(struct DiskIO *dio, Tag tag1, ...);
+#endif
 
 #ifdef __cplusplus
 }

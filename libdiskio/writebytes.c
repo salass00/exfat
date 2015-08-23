@@ -37,7 +37,7 @@ int DIO_WriteBytes(struct DiskIO *dio, UQUAD offset, CONST_APTR buffer, ULONG by
 				return TDERR_NoMem;
 			res = ReadBlocksCached(dio, block, sector_buffer, 1);
 			if (res) break;
-			CopyMem(buffer, sector_buffer + boffs, blen);
+			CopyMem((APTR)buffer, sector_buffer + boffs, blen);
 			res = WriteBlocksCached(dio, block, sector_buffer, 1);
 			if (res) break;
 			buffer += blen;
@@ -60,7 +60,7 @@ int DIO_WriteBytes(struct DiskIO *dio, UQUAD offset, CONST_APTR buffer, ULONG by
 				return TDERR_NoMem;
 			res = ReadBlocksCached(dio, block, sector_buffer, 1);
 			if (res) break;
-			CopyMem(buffer, sector_buffer, bytes);
+			CopyMem((APTR)buffer, sector_buffer, bytes);
 			res = WriteBlocksCached(dio, block, sector_buffer, 1);
 			if (res) break;
 		}
