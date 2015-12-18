@@ -7,8 +7,6 @@ AR     := $(HOST)-ar
 RANLIB := $(HOST)-ranlib
 RM     := rm -f
 
-V ?= /V
-
 CFLAGS  := -O2 -s -Wall -Werror -Wwrite-strings -std=gnu99 \
 	-fno-builtin-printf -fno-builtin-fprintf -fno-builtin-fputs \
 	-I../filesysbox/include -I. -I./libexfat -I./libdiskio \
