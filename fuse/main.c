@@ -3,7 +3,7 @@
 	FUSE-based exFAT implementation. Requires FUSE 2.6 or later.
 
 	Free exFAT implementation.
-	Copyright (C) 2010-2014  Andrew Nayenko
+	Copyright (C) 2010-2015  Andrew Nayenko
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
+#include <exfat.h>
 #define FUSE_USE_VERSION 26
 #if defined(__AROS__) || defined(AMIGA)
 #include <dos/dos.h>
@@ -35,14 +36,15 @@ static struct fuse_context *_fuse_context_;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <exfat.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <sys/types.h>
 #include <pwd.h>
 #include <unistd.h>
 
-#define exfat_debug(format, ...)
+#ifndef DEBUG
+	#define exfat_debug(format, ...)
+#endif
 
 #if !defined(FUSE_VERSION) || (FUSE_VERSION < 26)
 	#error FUSE 2.6 or later is required
@@ -50,10 +52,10 @@ static struct fuse_context *_fuse_context_;
 
 #if defined(__AROS__) || defined(AMIGA)
 const char* default_options = "ro_fallback,allow_other,blkdev,big_writes,"
-		"defer_permissions,noatime";
+		"default_permissions,noatime";
 #else
 const char* default_options = "ro_fallback,allow_other,blkdev,big_writes,"
-		"defer_permissions";
+		"default_permissions";
 #endif
 
 #if defined(__AROS__) || defined(AMIGA)
@@ -73,6 +75,7 @@ static struct exfat_node* get_node(const struct fuse_file_info* fi)
 static void set_node(struct fuse_file_info* fi, struct exfat_node* node)
 {
 	fi->fh = (uint64_t) (size_t) node;
+	fi->keep_cache = 1;
 }
 
 static int fuse_exfat_getattr(const char* path, struct fbx_stat* stbuf)
@@ -170,7 +173,24 @@ static int fuse_exfat_open(const char* path, struct fuse_file_info* fi)
 	if (rc != 0)
 		return rc;
 	set_node(fi, node);
-	fi->keep_cache = 1;
+	return 0;
+}
+
+static int fuse_exfat_create(const char* path, mode_t mode,
+		struct fuse_file_info* fi)
+{
+	struct exfat_node* node;
+	int rc;
+
+	exfat_debug("[%s] %s 0%ho", __func__, path, mode);
+
+	rc = exfat_mknod(&ef, path);
+	if (rc != 0)
+		return rc;
+	rc = exfat_lookup(&ef, &node, path);
+	if (rc != 0)
+		return rc;
+	set_node(fi, node);
 	return 0;
 }
 
@@ -206,6 +226,9 @@ static int fuse_exfat_fsync(const char* path, int datasync,
 	int rc;
 
 	exfat_debug("[%s] %s", __func__, path);
+	rc = exfat_flush_nodes(&ef);
+	if (rc != 0)
+		return rc;
 	rc = exfat_flush(&ef);
 	if (rc != 0)
 		return rc;
@@ -590,6 +613,7 @@ static struct fuse_operations fuse_exfat_ops =
 	.truncate	= fuse_exfat_truncate,
 	.readdir	= fuse_exfat_readdir,
 	.open		= fuse_exfat_open,
+	.create		= fuse_exfat_create,
 	.release	= fuse_exfat_release,
 	.flush		= fuse_exfat_flush,
 	.fsync		= fuse_exfat_fsync,
@@ -703,8 +727,7 @@ int main(int argc, char* argv[])
 	struct fuse* fh = NULL;
 	int opt;
 
-	printf("FUSE exfat %u.%u.%u\n",
-			EXFAT_VERSION_MAJOR, EXFAT_VERSION_MINOR, EXFAT_VERSION_PATCH);
+	printf("FUSE exfat %s\n", VERSION);
 
 	mount_options = strdup(default_options);
 	if (mount_options == NULL)
@@ -729,7 +752,7 @@ int main(int argc, char* argv[])
 			break;
 		case 'V':
 			free(mount_options);
-			puts("Copyright (C) 2010-2014  Andrew Nayenko");
+			puts("Copyright (C) 2010-2015  Andrew Nayenko");
 			return 0;
 		case 'v':
 			break;
@@ -847,8 +870,7 @@ int exfat_main(struct Message *msg) {
 	struct exfat_mount_data md;
 	struct FbxFS* fs = NULL;
 
-	printf("FUSE exfat %u.%u.%u\n",
-			EXFAT_VERSION_MAJOR, EXFAT_VERSION_MINOR, EXFAT_VERSION_PATCH);
+	printf("FUSE exfat %s\n", VERSION);
 
 	memset(&md, 0, sizeof(md));
 

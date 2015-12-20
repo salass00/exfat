@@ -4,7 +4,7 @@
 	implementation.
 
 	Free exFAT implementation.
-	Copyright (C) 2010-2014  Andrew Nayenko
+	Copyright (C) 2010-2015  Andrew Nayenko
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -24,15 +24,15 @@
 #ifndef EXFAT_H_INCLUDED
 #define EXFAT_H_INCLUDED
 
+#include "config.h"
+#include "compiler.h"
+#include "exfatfs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include "compiler.h"
-#include "exfatfs.h"
-#include "version.h"
 
 #if defined(__AROS__) || defined(AMIGA)
 #include <libraries/filesysbox.h>
@@ -64,6 +64,10 @@
 	((bitmap)[BMAP_BLOCK(index)] |= BMAP_MASK(index))
 #define BMAP_CLR(bitmap, index) \
 	((bitmap)[BMAP_BLOCK(index)] &= ~BMAP_MASK(index))
+
+/* The size of off_t type must be 64 bits. File systems larger than 2 GB will
+   be corrupted with 32-bit off_t. */
+STATIC_ASSERT(sizeof(fbx_off_t) == 8);
 
 struct exfat_node
 {
@@ -169,6 +173,7 @@ cluster_t exfat_next_cluster(const struct exfat* ef,
 		const struct exfat_node* node, cluster_t cluster);
 cluster_t exfat_advance_cluster(const struct exfat* ef,
 		struct exfat_node* node, uint32_t count);
+int exfat_flush_nodes(struct exfat* ef);
 int exfat_flush(struct exfat* ef);
 int exfat_truncate(struct exfat* ef, struct exfat_node* node, uint64_t size,
 		bool erase);

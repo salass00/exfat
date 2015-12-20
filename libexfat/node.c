@@ -3,7 +3,7 @@
 	exFAT file system implementation library.
 
 	Free exFAT implementation.
-	Copyright (C) 2010-2014  Andrew Nayenko
+	Copyright (C) 2010-2015  Andrew Nayenko
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -454,11 +454,21 @@ static int readdir(struct exfat* ef, const struct exfat_node* parent,
 			break;
 
 		default:
-			if (entry->type & EXFAT_ENTRY_VALID)
+			if (!(entry->type & EXFAT_ENTRY_VALID))
+				break; /* deleted entry, ignore it */
+			if (!(entry->type & EXFAT_ENTRY_OPTIONAL))
 			{
-				exfat_error("unknown entry type 0x%hhx", entry->type);
+				exfat_error("unknown entry type %#hhx", entry->type);
 				goto error;
 			}
+			/* optional entry, warn and skip */
+			exfat_warn("unknown entry type %#hhx", entry->type);
+			if (continuations == 0)
+			{
+				exfat_error("unexpected continuation");
+				goto error;
+			}
+			--continuations;
 			break;
 		}
 
@@ -654,7 +664,7 @@ int exfat_flush_node(struct exfat* ef, struct exfat_node* node)
 	}
 
 	node->flags &= ~EXFAT_ATTRIB_DIRTY;
-	return 0;
+	return exfat_flush(ef);
 }
 
 static bool erase_entry(struct exfat* ef, struct exfat_node* node)
@@ -963,7 +973,7 @@ int exfat_mkdir(struct exfat* ef, const char* path)
 	int rc;
 	struct exfat_node* node;
 
-	rc = create(ef, path, EXFAT_ATTRIB_ARCH | EXFAT_ATTRIB_DIR);
+	rc = create(ef, path, EXFAT_ATTRIB_DIR);
 	if (rc != 0)
 		return rc;
 	rc = exfat_lookup(ef, &node, path);
@@ -1118,6 +1128,16 @@ int exfat_rename(struct exfat* ef, const char* old_path, const char* new_path)
 					rc = -EISDIR;
 			}
 			exfat_put_node(ef, existing);
+			if (rc != 0)
+			{
+				/* free clusters even if something went wrong; overwise they
+				   will be just lost */
+				exfat_cleanup_node(ef, existing);
+				exfat_put_node(ef, dir);
+				exfat_put_node(ef, node);
+				return rc;
+			}
+			rc = exfat_cleanup_node(ef, existing);
 			if (rc != 0)
 			{
 				exfat_put_node(ef, dir);

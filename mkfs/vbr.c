@@ -3,7 +3,7 @@
 	Volume Boot Record creation code.
 
 	Free exFAT implementation.
-	Copyright (C) 2011-2014  Andrew Nayenko
+	Copyright (C) 2011-2015  Andrew Nayenko
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -20,12 +20,12 @@
 	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-#include <string.h>
 #include "vbr.h"
 #include "fat.h"
 #include "cbm.h"
 #include "uct.h"
 #include "rootdir.h"
+#include <string.h>
 
 static fbx_off_t vbr_alignment(void)
 {

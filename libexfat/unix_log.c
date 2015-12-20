@@ -22,8 +22,8 @@
 
 #include "exfat.h"
 #include <stdarg.h>
-#include <debugf.h>
-#include <proto/exec.h>
+#include <syslog.h>
+#include <unistd.h>
 
 int exfat_errors;
 
@@ -32,15 +32,22 @@ int exfat_errors;
  */
 void exfat_bug(const char* format, ...)
 {
-	va_list ap;
+	va_list ap, aq;
 
-	debugf("BUG: ");
 	va_start(ap, format);
-	vdebugf(format, ap);
-	va_end(ap);
-	debugf(".\n");
+	va_copy(aq, ap);
 
-	while (1) Wait(0);
+	fflush(stdout);
+	fputs("BUG: ", stderr);
+	vfprintf(stderr, format, ap);
+	va_end(ap);
+	fputs(".\n", stderr);
+
+	if (!isatty(STDERR_FILENO))
+		vsyslog(LOG_CRIT, format, aq);
+	va_end(aq);
+
+	abort();
 }
 
 /*
@@ -48,15 +55,21 @@ void exfat_bug(const char* format, ...)
  */
 void exfat_error(const char* format, ...)
 {
-	va_list ap;
+	va_list ap, aq;
 
 	exfat_errors++;
-
-	debugf("ERROR: ");
 	va_start(ap, format);
-	vdebugf(format, ap);
+	va_copy(aq, ap);
+
+	fflush(stdout);
+	fputs("ERROR: ", stderr);
+	vfprintf(stderr, format, ap);
 	va_end(ap);
-	debugf(".\n");
+	fputs(".\n", stderr);
+
+	if (!isatty(STDERR_FILENO))
+		vsyslog(LOG_ERR, format, aq);
+	va_end(aq);
 }
 
 /*
@@ -65,13 +78,20 @@ void exfat_error(const char* format, ...)
  */
 void exfat_warn(const char* format, ...)
 {
-	va_list ap;
+	va_list ap, aq;
 
-	debugf("WARN: ");
 	va_start(ap, format);
-	vdebugf(format, ap);
+	va_copy(aq, ap);
+
+	fflush(stdout);
+	fputs("WARN: ", stderr);
+	vfprintf(stderr, format, ap);
 	va_end(ap);
-	debugf(".\n");
+	fputs(".\n", stderr);
+
+	if (!isatty(STDERR_FILENO))
+		vsyslog(LOG_WARNING, format, aq);
+	va_end(aq);
 }
 
 /*
@@ -81,9 +101,10 @@ void exfat_debug(const char* format, ...)
 {
 	va_list ap;
 
-	debugf("DEBUG: ");
+	fflush(stdout);
+	fputs("DEBUG: ", stderr);
 	va_start(ap, format);
-	vdebugf(format, ap);
+	vfprintf(stderr, format, ap);
 	va_end(ap);
-	debugf(".\n");
+	fputs(".\n", stderr);
 }

@@ -3,7 +3,7 @@
 	FS creation engine.
 
 	Free exFAT implementation.
-	Copyright (C) 2011-2014  Andrew Nayenko
+	Copyright (C) 2011-2015  Andrew Nayenko
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -20,12 +20,12 @@
 	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
+#include "mkexfat.h"
 #include <sys/types.h>
 #include <unistd.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
-#include "mkexfat.h"
 
 static int check_size(fbx_off_t volume_size)
 {
