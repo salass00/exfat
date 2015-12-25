@@ -2,4 +2,5 @@
 *.[oa]
 # Ignore generated exe file
 exfat-handler
-
+# Ignore release archives
+*.7z

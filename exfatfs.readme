@@ -1,0 +1,30 @@
+Short:        A free exFAT file system implementation
+Author:       Andrew Nayenko, Fredrik Wikstrom
+Uploader:     Fredrik Wikstrom <fredrik@a500.org>
+Type:         disk/misc
+Version:      xx.xx
+Architecture: xxx
+
+Installation:
+
+Copy L/exfat-handler L:
+
+Usage:
+
+When creating a DOSDriver or Mountlist entry for an exFAT partition make sure
+that the FileSystem and Handler are set as follows:
+
+FileSystem     = exfat-handler
+DosType        = 0x46415458
+
+Source code:
+
+The source code for current and older versions is available under APL license
+on github:
+
+https://github.com/salass00/exfat
+
+Changes:
+
+For a list of changes in this and earlier versions see the releasenotes file.
+
