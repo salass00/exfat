@@ -21,8 +21,9 @@ cp -p COPYING ${DESTDIR}/exfatfs-${NUMVERS}
 cp -p releasenotes ${DESTDIR}/exfatfs-${NUMVERS}
 cp -p exfat-handler ${DESTDIR}/exfatfs-${NUMVERS}/L
 
-sed -i "s/^Version:      xx.xx/Version:      ${NUMVERS}/" ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
-sed -i "s/^Architecture: xxx/Architecture: ${HOST}/" ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
+sed -i "s_^Version:      xx.xx_Version:      ${NUMVERS}_" ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
+sed -i "s_^Requires:     xxx_Requires:     util/libs/filesysbox.${HOST}.lha_" ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
+sed -i "s_^Architecture: xxx_Architecture: ${HOST}_" ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
 
 rm -f exfatfs.${HOST}.7z
 7za u exfatfs.${HOST}.7z ./${DESTDIR}/exfatfs-${NUMVERS}

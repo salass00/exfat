@@ -3,7 +3,12 @@ Author:       Andrew Nayenko, Fredrik Wikstrom
 Uploader:     Fredrik Wikstrom <fredrik@a500.org>
 Type:         disk/misc
 Version:      xx.xx
+Requires:     xxx
 Architecture: xxx
+
+Requirements:
+
+- filesysbox.library
 
 Installation:
 
