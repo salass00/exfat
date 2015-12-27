@@ -6,6 +6,9 @@ Version:      xx.xx
 Requires:     xxx
 Architecture: xxx
 
+This project aims to provide a full-featured exFAT file system implementation
+for Unix-like systems.
+
 Requirements:
 
 - filesysbox.library
