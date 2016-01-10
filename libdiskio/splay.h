@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Fredrik Wikstrom <fredrik@a500.org>
+ * Copyright (c) 2014-2016 Fredrik Wikstrom <fredrik@a500.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,23 +16,27 @@
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef SPLAYTREE_H
-#define SPLAYTREE_H
+#ifndef SPLAY_H
+#define SPLAY_H
 
 #ifndef EXEC_TYPES_H
 #include <exec/types.h>
 #endif
-#ifndef UTILITY_HOOKS_H
-#include <utility/hooks.h>
-#endif
 
-struct SplayTree;
+struct Splay {
+	struct Splay *parent;
+	struct Splay *left;
+	struct Splay *right;
+	CONST_APTR    key;
+};
 
-struct SplayTree *CreateSplayTree(struct Hook *hook);
-void DeleteSplayTree(struct SplayTree *tree);
-BOOL InsertSplayNode(struct SplayTree *tree, APTR key, APTR data);
-APTR FindSplayNode(struct SplayTree *tree, APTR key);
-BOOL RemoveSplayNode(struct SplayTree *tree, APTR key);
+typedef int (*SplayCmpFunc)(CONST_APTR key1, CONST_APTR key2);
+
+void InsertSplay(struct Splay **root, SplayCmpFunc cmpfunc, struct Splay *sn, CONST_APTR key);
+struct Splay *FindSplay(struct Splay **root, SplayCmpFunc cmpfunc, CONST_APTR key);
+struct Splay *PrevSplay(struct Splay *sn);
+struct Splay *NextSplay(struct Splay *sn);
+void RemoveSplay(struct Splay **root, struct Splay *sn);
 
 #endif
 

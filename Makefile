@@ -42,7 +42,7 @@ LIBDISKIO_OBJS := \
 	libdiskio/flushiocache.o \
 	libdiskio/diskio.o \
 	libdiskio/blockcache.o \
-	libdiskio/splaytree.o \
+	libdiskio/splay.o \
 	libdiskio/mergesort.o
 
 LIBSUPPORT_OBJS := \

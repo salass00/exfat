@@ -1,8 +1,5 @@
-#ifndef DISKIO_INTERNAL_H
-#define DISKIO_INTERNAL_H
-
 /**
- * Copyright (c) 2015 Fredrik Wikstrom <fredrik@a500.org>
+ * Copyright (c) 2014-2016 Fredrik Wikstrom <fredrik@a500.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +16,9 @@
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifndef DISKIO_INTERNAL_H
+#define DISKIO_INTERNAL_H
+
 #include "diskio.h"
 #include <exec/errors.h>
 #include <exec/interrupts.h>
@@ -30,6 +30,7 @@
 #include <proto/filesysbox.h>
 #include <string.h>
 #include <stdarg.h>
+#include "splay.h"
 
 //#define DEBUG
 //#define DISABLE_BLOCK_CACHE
@@ -68,7 +69,16 @@ int vdebugf(const char *fmt, va_list args);
 #define MIN(a,b) ((a)<(b)?(a):(b))
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
+#ifdef __GNUC__
+#define container_of(ptr, type, member) ({ \
+	const typeof( ((type *)0)->member ) *__mptr = (ptr); \
+	(type *)( (char *)__mptr - offsetof(type, member) );})
+#else
+#define container_of(ptr, type, member) ( (type *)( (char *)(ptr) - offsetof(type, member) ) )
+#endif
+
 #ifndef DISABLE_BLOCK_CACHE
+
 struct BlockCache {
 	struct MinNode         node;
 	struct DiskIO         *dio_handle;
@@ -77,8 +87,7 @@ struct BlockCache {
 	struct SignalSemaphore cache_semaphore;
 	struct MinList         clean_list;
 	struct MinList         dirty_list;
-	struct Hook           *cache_tree_hook;
-	struct SplayTree      *cache_tree;
+	struct Splay          *cache_tree;
 	ULONG                  num_clean_nodes;
 	ULONG                  num_dirty_nodes;
 	ULONG                  num_cache_nodes;
@@ -87,12 +96,18 @@ struct BlockCache {
 };
 
 struct BlockCacheNode {
+	struct Splay   splay;
 	struct MinNode node;
 	UQUAD          sector;
-	ULONG          checksum;
-	LONG           dirty;
+	UBYTE          dirty;
+	UBYTE          pad[3];
 	APTR           data;
+	ULONG          checksum;
 };
+
+#define BCNFROMSPLAY(s) container_of(s, struct BlockCacheNode, splay)
+#define BCNFROMNODE(n)  container_of(n, struct BlockCacheNode, node)
+
 #endif
 
 struct DiskIO {
