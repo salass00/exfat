@@ -165,24 +165,40 @@ struct Splay *PrevSplay(struct Splay *sn) {
 	if (sn == NULL)
 		return NULL;
 
-	if (sn->left != NULL)
-		return sn->left;
-	else if (sn->parent != NULL && sn->parent->right == sn)
-		return sn->parent;
-	else
-		return NULL;
+	if (sn->left != NULL) {
+		sn = sn->left;
+		while (sn->right != NULL) {
+			sn = sn->right;
+		}
+		return sn;
+	} else {
+		struct Splay *parent = sn->parent;
+		while (parent != NULL && parent->left == sn) {
+			sn = parent;
+			parent = sn->parent;
+		}
+		return parent;
+	}
 }
 
 struct Splay *NextSplay(struct Splay *sn) {
 	if (sn == NULL)
 		return NULL;
 
-	if (sn->right != NULL)
-		return sn->right;
-	else if (sn->parent != NULL && sn->parent->left == sn)
-		return sn->parent;
-	else
-		return NULL;
+	if (sn->right != NULL) {
+		sn = sn->right;
+		while (sn->left != NULL) {
+			sn = sn->left;
+		}
+		return sn;
+	} else {
+		struct Splay *parent = sn->parent;
+		while (parent != NULL && parent->right == sn) {
+			sn = parent;
+			parent = sn->parent;
+		}
+		return parent;
+	}
 }
 
 void RemoveSplay(struct Splay **root, struct Splay *sn) {
