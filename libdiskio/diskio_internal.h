@@ -117,7 +117,6 @@ struct DiskIO {
 	APTR               mempool;
 	struct MsgPort    *diskmp;
 	struct IOExtTD    *diskiotd;
-	struct Device     *disk_device;
 	UWORD              cmd_support;
 	BOOL               use_full_disk;
 	ULONG              sector_size;

@@ -132,18 +132,13 @@ struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
 	}
 
 	FbxCopyStringBSTRToC(fssm->fssm_Device, (STRPTR)devname, sizeof(devname));
-	if (OpenDevice((CONST_STRPTR)devname, fssm->fssm_Unit,
-		(struct IORequest *)iotd, fssm->fssm_Flags) != 0)
-	{
+	if (OpenDevice((CONST_STRPTR)devname, fssm->fssm_Unit, (struct IORequest *)iotd, fssm->fssm_Flags) != 0) {
 		DEBUGF("DIO_Setup: Failed to open %s unit %u using flags 0x%x.\n",
-			fssm->fssm_Device,
-			(unsigned int)fssm->fssm_Unit,
-			(unsigned int)fssm->fssm_Flags);
+			fssm->fssm_Device, fssm->fssm_Unit, fssm->fssm_Flags);
+		iotd->iotd_Req.io_Device = NULL;
 		error = DIO_ERROR_OPENDEVICE;
 		goto cleanup;
 	}
-
-	dio->disk_device = iotd->iotd_Req.io_Device;
 
 	if (de->de_LowCyl == 0) {
 		dio->use_full_disk = TRUE;

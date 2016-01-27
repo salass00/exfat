@@ -24,19 +24,20 @@ void DIO_Cleanup(struct DiskIO *dio) {
 	if (dio != NULL) {
 		DIO_FlushIOCache(dio);
 
-		if (dio->block_cache != NULL)
-			CleanupBlockCache(dio->block_cache);
+		if (dio->block_cache != NULL) CleanupBlockCache(dio->block_cache);
 
-		DeletePool(dio->mempool);
+		if (dio->mempool != NULL) DeletePool(dio->mempool);
 
-		if (dio->disk_device != NULL)
-			CloseDevice((struct IORequest *)dio->diskiotd);
+		if (dio->diskiotd != NULL) {
+			if (dio->diskiotd->iotd_Req.io_Device != NULL)
+				CloseDevice((struct IORequest *)dio->diskiotd);
 
-		DeleteIORequest((struct IORequest *)dio->diskiotd);
-		DeleteMsgPort(dio->diskmp);
+			DeleteIORequest((struct IORequest *)dio->diskiotd);
+		}
 
-		if (dio->uninhibit)
-			Inhibit(dio->devname, FALSE);
+		if (dio->diskmp != NULL) DeleteMsgPort(dio->diskmp);
+
+		if (dio->uninhibit) Inhibit(dio->devname, FALSE);
 
 		FreeMem(dio, sizeof(*dio));
 	}
