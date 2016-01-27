@@ -23,12 +23,10 @@ void DIO_Update(struct DiskIO *dio) {
 
 	struct IOExtTD *iotd = dio->diskiotd;
 
-#ifndef DISABLE_BLOCK_CACHE
 	if (dio->block_cache != NULL) {
 		CleanupBlockCache(dio->block_cache);
 		dio->block_cache = NULL;
 	}
-#endif
 
 	if (dio->rw_buffer != NULL) {
 		FreePooled(dio->mempool, dio->rw_buffer, RW_BUFFER_SIZE << dio->sector_shift);
@@ -108,7 +106,6 @@ void DIO_Update(struct DiskIO *dio) {
 		dio->rw_buffer = AllocPooled(dio->mempool, RW_BUFFER_SIZE << dio->sector_shift);
 		if (dio->rw_buffer == NULL)
 			dio->disk_ok = FALSE;
-#ifndef DISABLE_BLOCK_CACHE
 		else if (!dio->no_cache) {
 			dio->block_cache = InitBlockCache(dio);
 
@@ -118,7 +115,6 @@ void DIO_Update(struct DiskIO *dio) {
 				dio->disk_ok = FALSE;
 			}
 		}
-#endif
 
 		if (((dio->partition_start + dio->partition_size - 1) >> 32) != 0) {
 			if (dio->cmd_support & CMDSF_NSD_ETD64) {

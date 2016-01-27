@@ -54,14 +54,12 @@ struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
 	tstate = (struct TagItem *)tags;
 	while ((tag = NextTagItem(&tstate)) != NULL) {
 		switch (tag->ti_Tag) {
-#ifndef DISABLE_BLOCK_CACHE
 			case DIOS_Cache:
 				dio->no_cache = !tag->ti_Data;
 				break;
 			case DIOS_WriteCache:
 				dio->no_write_cache = !tag->ti_Data;
 				break;
-#endif
 			case DIOS_Inhibit:
 				dio->inhibit = !!tag->ti_Data;
 				break;

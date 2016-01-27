@@ -17,9 +17,6 @@
  */
 
 #include "diskio_internal.h"
-
-#ifndef DISABLE_BLOCK_CACHE
-
 #include <SDI/SDI_hook.h>
 
 #ifdef __AROS__
@@ -487,6 +484,4 @@ BOOL BlockCacheFlush(struct BlockCache *bc) {
 
 	return result;
 }
-
-#endif
 

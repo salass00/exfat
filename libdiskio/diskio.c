@@ -121,8 +121,6 @@ LONG WriteBlocksUncached(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULO
 	return res;
 }
 
-#ifndef DISABLE_BLOCK_CACHE
-
 LONG ReadBlocksCached(struct DiskIO *dio, UQUAD block, APTR buffer, ULONG blocks) {
 	DEBUGF("ReadBlocksCached(%#p, %llu, %#p, %u)\n", dio, block, buffer, (unsigned)blocks);
 
@@ -242,6 +240,4 @@ LONG WriteBlocksCached(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG
 		return DIO_SUCCESS;
 	}
 }
-
-#endif
 

@@ -33,7 +33,6 @@
 #include "splay.h"
 
 //#define DEBUG
-//#define DISABLE_BLOCK_CACHE
 #define DISABLE_DOSTYPE_CHECK
 
 #ifndef NEWLIST
@@ -77,8 +76,6 @@ int vdebugf(const char *fmt, va_list args);
 #define container_of(ptr, type, member) ( (type *)( (char *)(ptr) - offsetof(type, member) ) )
 #endif
 
-#ifndef DISABLE_BLOCK_CACHE
-
 struct BlockCache {
 	struct MinNode         node;
 	struct DiskIO         *dio_handle;
@@ -108,8 +105,6 @@ struct BlockCacheNode {
 #define BCNFROMSPLAY(s) container_of(s, struct BlockCacheNode, splay)
 #define BCNFROMNODE(n)  container_of(n, struct BlockCacheNode, node)
 
-#endif
-
 struct DiskIO {
 	APTR               mempool;
 	struct MsgPort    *diskmp;
@@ -131,11 +126,9 @@ struct DiskIO {
 	UWORD              read_cmd;
 	UWORD              write_cmd;
 	UWORD              update_cmd;
-#ifndef DISABLE_BLOCK_CACHE
 	BOOL               no_cache;
 	BOOL               no_write_cache;
 	struct BlockCache *block_cache;
-#endif
 	APTR               rw_buffer;
 	TEXT               devname[256];
 	BOOL               inhibit;
@@ -152,16 +145,13 @@ struct DiskIO {
 #define CMDSF_CMD_UPDATE (1 << 5)
 #define CMDSF_ETD_UPDATE (1 << 6)
 
-#ifndef DISABLE_BLOCK_CACHE
 #define MAX_CACHE_NODES 4096
 #define MAX_DIRTY_NODES 1024
 #define RW_BUFFER_SIZE 128
 #define MAX_READ_AHEAD 128
 //#define MAX_CACHED_READ 128
 //#define MAX_CACHED_WRITE 128
-#endif
 
-#ifndef DISABLE_BLOCK_CACHE
 /* blockcache.c */
 struct BlockCache *InitBlockCache(struct DiskIO *dio);
 void CleanupBlockCache(struct BlockCache *bc);
@@ -172,20 +162,14 @@ BOOL BlockCacheFlush(struct BlockCache *bc);
 
 /* mergesort.c */
 void SortBlockCacheNodes(struct MinList *list);
-#endif
 
 /* diskio.c */
 void ClearSectorSize(struct DiskIO *dio);
 void SetSectorSize(struct DiskIO *dio, ULONG sector_size);
 LONG ReadBlocksUncached(struct DiskIO *dio, UQUAD block, APTR buffer, ULONG blocks);
 LONG WriteBlocksUncached(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG blocks);
-#ifdef DISABLE_BLOCK_CACHE
-#define ReadBlocksCached  ReadBlocksUncached
-#define WriteBlocksCached WriteBlocksUncached
-#else
 LONG ReadBlocksCached(struct DiskIO *dio, UQUAD block, APTR buffer, ULONG blocks);
 LONG WriteBlocksCached(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG blocks);
-#endif
 
 #endif
 

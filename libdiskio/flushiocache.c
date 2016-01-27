@@ -21,9 +21,9 @@
 int DIO_FlushIOCache(struct DiskIO *dio) {
 	DEBUGF("DIO_FlushIOCache(%#p)\n", dio);
 
-	if (dio == NULL || dio->disk_ok == FALSE) return DIO_ERROR_UNSPECIFIED;
+	if (dio == NULL || dio->disk_ok == FALSE)
+		return DIO_ERROR_UNSPECIFIED;
 
-#ifndef DISABLE_BLOCK_CACHE
 	if (dio->block_cache != NULL &&
 		dio->no_write_cache == FALSE &&
 		dio->read_only == FALSE &&
@@ -32,7 +32,6 @@ int DIO_FlushIOCache(struct DiskIO *dio) {
 		DEBUGF("DIO_FlushIOCache failed\n");
 		return DIO_ERROR_UNSPECIFIED;
 	}
-#endif
 
 	if (dio->doupdate) {
 		dio->doupdate = FALSE;

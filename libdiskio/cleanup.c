@@ -24,10 +24,8 @@ void DIO_Cleanup(struct DiskIO *dio) {
 	if (dio != NULL) {
 		DIO_FlushIOCache(dio);
 
-#ifndef DISABLE_BLOCK_CACHE
 		if (dio->block_cache != NULL)
 			CleanupBlockCache(dio->block_cache);
-#endif
 
 		DeletePool(dio->mempool);
 
