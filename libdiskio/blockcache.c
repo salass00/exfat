@@ -100,9 +100,11 @@ struct BlockCache *InitBlockCache(struct DiskIO *dio) {
 
 	bzero(bc, sizeof(*bc));
 
-	bc->dio_handle   = dio;
-	bc->sector_size  = dio->sector_size;
-	bc->rw_buffer    = dio->rw_buffer;
+	bc->dio_handle          = dio;
+	bc->sector_size         = dio->sector_size;
+	bc->rw_buffer           = dio->rw_buffer;
+	bc->write_cache_enabled = dio->write_cache_enabled;
+
 	NEWLIST(&bc->clean_list);
 	NEWLIST(&bc->dirty_list);
 
@@ -337,6 +339,9 @@ BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 
 	DEBUGF("WriteCacheNode(%#p, %llu, %#p, 0x%08x)\n", bc, sector, buffer, flags);
 
+	if (bc->write_cache_enabled == FALSE)
+		return FALSE;
+
 	ObtainSemaphore(&bc->cache_semaphore);
 
 	sn = FindSplay(&bc->cache_tree, CacheTreeCompareFunc, &sector);
@@ -430,7 +435,7 @@ BOOL FlushDirtyNodes(struct BlockCache *bc) {
 
 	DEBUGF("FlushDirtyNodes(%#p)\n", bc);
 
-	if (dio->no_write_cache)
+	if (bc->write_cache_enabled == FALSE)
 		return TRUE;
 
 	if (IsMinListEmpty(&bc->dirty_list))

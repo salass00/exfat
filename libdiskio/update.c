@@ -133,7 +133,7 @@ void DIO_Update(struct DiskIO *dio) {
 		dio->rw_buffer = AllocPooled(dio->mempool, RW_BUFFER_SIZE << dio->sector_shift);
 		if (dio->rw_buffer == NULL)
 			dio->disk_ok = FALSE;
-		else if (!dio->no_cache) {
+		else if (dio->cache_enabled) {
 			dio->block_cache = InitBlockCache(dio);
 
 			if (dio->block_cache == NULL) {

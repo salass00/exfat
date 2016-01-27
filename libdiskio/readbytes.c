@@ -31,7 +31,7 @@ int DIO_ReadBytes(struct DiskIO *dio, UQUAD offset, APTR buffer, ULONG bytes)
 	int res = DIO_SUCCESS;
 
 	do {
-		if (!dio->no_cache && MAX_READ_AHEAD > 1) {
+		if (dio->cache_enabled && MAX_READ_AHEAD > 1) {
 			blocks = (boffs + bytes + dio->sector_mask) >> dio->sector_shift;
 			while (blocks < MAX_READ_AHEAD && (block + blocks) < dio->total_sectors &&
 				ReadCacheNode(dio->block_cache, block + blocks, NULL, 0) == FALSE)

@@ -51,14 +51,18 @@ struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
 		goto cleanup;
 	}
 
+	/* Enable caches by default */
+	dio->cache_enabled       = TRUE;
+	dio->write_cache_enabled = TRUE;
+
 	tstate = (struct TagItem *)tags;
 	while ((tag = NextTagItem(&tstate)) != NULL) {
 		switch (tag->ti_Tag) {
 			case DIOS_Cache:
-				dio->no_cache = !tag->ti_Data;
+				dio->cache_enabled = !!tag->ti_Data;
 				break;
 			case DIOS_WriteCache:
-				dio->no_write_cache = !tag->ti_Data;
+				dio->write_cache_enabled = !!tag->ti_Data;
 				break;
 			case DIOS_Inhibit:
 				dio->inhibit = !!tag->ti_Data;
@@ -76,6 +80,14 @@ struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
 				break;
 		}
 	}
+
+	/* If read-only mode is enabled, disable write cache */
+	if (dio->read_only)
+		dio->write_cache_enabled = FALSE;
+
+	/* If cache is disabled, write cache should be disabled too */
+	if (dio->cache_enabled == FALSE)
+		dio->write_cache_enabled = FALSE;
 
 	/* Remove possible colon from name and anything else that might follow it */
 	SplitName(name, ':', dio->devname, 0, sizeof(dio->devname));

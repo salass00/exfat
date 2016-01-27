@@ -89,7 +89,7 @@ LONG CachedWriteBlocks(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG
 	if (MAX_CACHED_WRITE && blocks > MAX_CACHED_WRITE)
 		bigwrite = TRUE;
 
-	if (dio->no_write_cache || bigwrite) {
+	if (dio->write_cache_enabled == FALSE || bigwrite) {
 		ULONG scn_flags = SCN_CLEAR_DIRTY;
 
 		if (bigwrite)

@@ -97,6 +97,7 @@ struct BlockCache {
 	ULONG                  num_cache_nodes;
 	APTR                   rw_buffer;
 	struct Interrupt       mem_handler;
+	BOOL                   write_cache_enabled;
 };
 
 struct BlockCacheNode {
@@ -133,8 +134,8 @@ struct DiskIO {
 	UWORD              read_cmd;
 	UWORD              write_cmd;
 	UWORD              update_cmd;
-	BOOL               no_cache;
-	BOOL               no_write_cache;
+	BOOL               cache_enabled;
+	BOOL               write_cache_enabled;
 	struct BlockCache *block_cache;
 	APTR               rw_buffer;
 	TEXT               devname[256];
