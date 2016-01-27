@@ -20,14 +20,7 @@
 #include <dos/filehandler.h>
 
 struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
-	DEBUGF("DIO_Setup('%s', %#p)\n", name, tags);
-
-	if (name == NULL || name[0] == '\0' || name[0] == ':') {
-		DEBUGF("DIO_Setup: No valid name argument specified.\n");
-		return NULL;
-	}
-
-	struct DiskIO *dio;
+	struct DiskIO *dio = NULL;
 	struct TagItem *tstate;
 	const struct TagItem *tag;
 #ifndef DISABLE_DOSTYPE_CHECK
@@ -44,6 +37,11 @@ struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
 	struct NSDeviceQueryResult nsdqr;
 	int error = DIO_ERROR_UNSPECIFIED;
 	int *error_storage;
+
+	DEBUGF("DIO_Setup('%s', %#p)\n", name, tags);
+
+	if (name == NULL || name[0] == '\0' || name[0] == ':')
+		goto cleanup;
 
 	dio = AllocMem(sizeof(*dio), MEMF_PUBLIC|MEMF_CLEAR);
 	if (dio == NULL) {
@@ -133,8 +131,6 @@ struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
 
 	FbxCopyStringBSTRToC(fssm->fssm_Device, (STRPTR)devname, sizeof(devname));
 	if (OpenDevice((CONST_STRPTR)devname, fssm->fssm_Unit, (struct IORequest *)iotd, fssm->fssm_Flags) != 0) {
-		DEBUGF("DIO_Setup: Failed to open %s unit %u using flags 0x%x.\n",
-			fssm->fssm_Device, fssm->fssm_Unit, fssm->fssm_Flags);
 		iotd->iotd_Req.io_Device = NULL;
 		error = DIO_ERROR_OPENDEVICE;
 		goto cleanup;
@@ -142,27 +138,30 @@ struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
 
 	if (de->de_LowCyl == 0) {
 		dio->use_full_disk = TRUE;
-		DEBUGF("de_LowCyl == 0 => using full disk\n");
 	} else {
-		UQUAD sector_size = de->de_SizeBlock * sizeof(ULONG);
-		UQUAD cylinder_size = (UQUAD)de->de_BlocksPerTrack * (UQUAD)de->de_Surfaces * sector_size;
-		dio->use_full_disk = FALSE;
+		ULONG sector_size;
+		UQUAD cylinder_size;
+
+		sector_size = de->de_SizeBlock << 2;
+
+		if (!IsValidSectorSize(sector_size)) goto cleanup;
+
 		SetSectorSize(dio, sector_size);
+
+		cylinder_size = ((UQUAD)de->de_BlocksPerTrack * (UQUAD)de->de_Surfaces) << dio->sector_shift;
+
+		dio->use_full_disk   = FALSE;
 		dio->partition_start = (UQUAD)de->de_LowCyl * cylinder_size;
-		dio->partition_size = (UQUAD)(de->de_HighCyl - de->de_LowCyl + 1) * cylinder_size;
-		dio->total_sectors = dio->partition_size / dio->sector_size;
-		DEBUGF("partiton start: %llu partition size: %llu cylinder size: %llu sector size: %lu total sectors: %llu\n",
-			dio->partition_start, dio->partition_size, cylinder_size, dio->sector_size, dio->total_sectors);
+		dio->partition_size  = (UQUAD)(de->de_HighCyl - de->de_LowCyl + 1) * cylinder_size;
+		dio->total_sectors   = dio->partition_size >> dio->sector_shift;
 	}
 
-	DEBUGF("Trying NSD query command\n");
 	iotd->iotd_Req.io_Command = NSCMD_DEVICEQUERY;
 	iotd->iotd_Req.io_Data = &nsdqr;
 	iotd->iotd_Req.io_Length = sizeof(nsdqr);
 	bzero(&nsdqr, sizeof(nsdqr)); /* Required for usbscsi.device */
 	if (DoIO((struct IORequest *)iotd) == 0) {
 		if (nsdqr.DeviceType != NSDEVTYPE_TRACKDISK) {
-			DEBUGF("Not a trackdisk device\n");
 			error = DIO_ERROR_NSDQUERY;
 			goto cleanup;
 		}
@@ -188,10 +187,8 @@ struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
 			}
 		}
 	} else if (iotd->iotd_Req.io_Error == IOERR_NOCMD) {
-		DEBUGF("Not an NSD device\n");
 		dio->cmd_support = CMDSF_TD32|CMDSF_CMD_UPDATE;
 
-		DEBUGF("Checking for TD64 support\n");
 		iotd->iotd_Req.io_Command = TD_READ64;
 		iotd->iotd_Req.io_Data = NULL;
 		iotd->iotd_Req.io_Actual = 0;
@@ -200,13 +197,11 @@ struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
 		if (DoIO((struct IORequest *)iotd) != IOERR_NOCMD)
 			dio->cmd_support |= CMDSF_TD64;
 	} else {
-		DEBUGF("NSD query command failed (error: %d)\n", (int)iotd->iotd_Req.io_Error);
 		error = DIO_ERROR_NSDQUERY;
 		goto cleanup;
 	}
 
 	if ((dio->cmd_support & (CMDSF_TD32|CMDSF_ETD32|CMDSF_TD64|CMDSF_NSD_TD64|CMDSF_NSD_ETD64)) == 0) {
-		DEBUGF("No I/O commands supported\n");
 		error = DIO_ERROR_NSDQUERY;
 		goto cleanup;
 	}
@@ -224,7 +219,7 @@ struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
 		goto cleanup;
 	}
 
-	DIO_Update(dio);
+	Internal_Update(dio, TRUE);
 
 	DEBUGF("DIO_Setup: %#p\n", dio);
 	return dio;

@@ -76,6 +76,12 @@ int vdebugf(const char *fmt, va_list args);
 #define container_of(ptr, type, member) ( (type *)( (char *)(ptr) - offsetof(type, member) ) )
 #endif
 
+#ifdef __GNUC__
+typedef struct { } LABEL;
+#else
+typedef char LABEL;
+#endif
+
 #define MAX_CACHE_NODES  4096
 #define MAX_DIRTY_NODES  1024
 #define RW_BUFFER_SIZE   128
@@ -114,35 +120,55 @@ struct BlockCacheNode {
 #define BCNFROMNODE(n)  container_of(n, struct BlockCacheNode, node)
 
 struct DiskIO {
+	/* These fields are initialised on Setup() only. */
 	APTR               mempool;
 	struct MsgPort    *diskmp;
 	struct IOExtTD    *diskiotd;
 	UWORD              cmd_support;
-	BOOL               use_full_disk;
-	ULONG              sector_size;
-	ULONG              sector_shift;
-	ULONG              sector_mask;
-	UQUAD              partition_start;
-	UQUAD              partition_size;
-	UQUAD              total_sectors;
-	BOOL               disk_present;
-	BOOL               disk_ok;
-	BOOL               write_protected;
-	ULONG              disk_id;
-	UQUAD              disk_size;
-	UWORD              read_cmd;
-	UWORD              write_cmd;
 	UWORD              update_cmd;
 	BOOL               cache_enabled;
 	BOOL               write_cache_enabled;
-	struct BlockCache *block_cache;
-	APTR               rw_buffer;
-	TEXT               devname[256];
 	BOOL               inhibit;
 	BOOL               uninhibit;
 	BOOL               doupdate;
 	BOOL               read_only;
+	BOOL               use_full_disk;
+
+	/* If use_full_disk is TRUE the following are initialised by Setup() only,
+     * otherwise they are initialised by Update(). */
+	LABEL              SETUP_DATA_START;
+	ULONG              sector_size;
+	ULONG              sector_shift;
+	ULONG              sector_mask;
+	UWORD              read_cmd;
+	UWORD              write_cmd;
+	UQUAD              partition_start;
+	UQUAD              partition_size;
+	UQUAD              total_sectors;
+	LABEL              SETUP_DATA_END;
+
+	/* The following fields are initialised on Update() only. */
+	LABEL              UPDATE_DATA_START;
+	APTR               rw_buffer;
+	struct BlockCache *block_cache;
+	ULONG              disk_id;
+	UQUAD              disk_size;
+	BOOL               disk_present;
+	BOOL               disk_ok;
+	BOOL               write_protected;
+	LABEL              UPDATE_DATA_END;
+
+	/* Buffer used to store the DOS device name */
+	TEXT               devname[256];
 };
+
+#define SETUP_DATA_START(dio) ((APTR)&(dio)->SETUP_DATA_START)
+#define SETUP_DATA_END(dio)   ((APTR)&(dio)->SETUP_DATA_END)
+#define SETUP_DATA_SIZE(dio)  ((IPTR)SETUP_DATA_END(dio) - (IPTR)SETUP_DATA_START(dio))
+
+#define UPDATE_DATA_START(dio) ((APTR)&(dio)->UPDATE_DATA_START)
+#define UPDATE_DATA_END(dio)   ((APTR)&(dio)->UPDATE_DATA_END)
+#define UPDATE_DATA_SIZE(dio)  ((IPTR)UPDATE_DATA_END(dio) - (IPTR)UPDATE_DATA_START(dio))
 
 #define CMDSF_TD32       (1 << 0)
 #define CMDSF_ETD32      (1 << 1)
@@ -160,7 +186,10 @@ struct DiskIO {
 #define SCN_CLEAR_DIRTY  (1 << 1)
 
 /* update.c */
+BOOL IsValidSectorSize(ULONG x);
 void SetSectorSize(struct DiskIO *dio, ULONG sector_size);
+void CleanupDisk(struct DiskIO *dio, BOOL cleanup);
+BOOL Internal_Update(struct DiskIO *dio, BOOL setup);
 
 /* deviceio.c */
 LONG DeviceReadBlocks(struct DiskIO *dio, UQUAD block, APTR buffer, ULONG blocks);
