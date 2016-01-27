@@ -36,6 +36,9 @@ static inline ULONG FirstSetBit(ULONG x) {
 #ifdef __PPC__
 	__asm__ ("cntlzw %0,%1" : "=r" (x) : "r" (x));
 	return 31 - x;
+#elif defined(__mc68020)
+	__asm__ ("bfffo %1{#0,#32},%0" : "=d" (x) : "g" (x));
+	return 31 - x;
 #else
 	ULONG i;
 	for (i = 0; i < 32; i++) {

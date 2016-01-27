@@ -147,7 +147,7 @@ struct DiskIO {
 	UQUAD              total_sectors;
 	LABEL              SETUP_DATA_END;
 
-	/* The following fields are initialised on Update() only. */
+	/* The following fields are always (re)initialised on Update(). */
 	LABEL              UPDATE_DATA_START;
 	APTR               rw_buffer;
 	struct BlockCache *block_cache;
