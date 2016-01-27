@@ -76,6 +76,13 @@ int vdebugf(const char *fmt, va_list args);
 #define container_of(ptr, type, member) ( (type *)( (char *)(ptr) - offsetof(type, member) ) )
 #endif
 
+#define MAX_CACHE_NODES  4096
+#define MAX_DIRTY_NODES  1024
+#define RW_BUFFER_SIZE   128
+#define MAX_READ_AHEAD   128
+#define MAX_CACHED_READ  128
+#define MAX_CACHED_WRITE 128
+
 struct BlockCache {
 	struct MinNode         node;
 	struct DiskIO         *dio_handle;
@@ -145,12 +152,12 @@ struct DiskIO {
 #define CMDSF_CMD_UPDATE (1 << 5)
 #define CMDSF_ETD_UPDATE (1 << 6)
 
-#define MAX_CACHE_NODES 4096
-#define MAX_DIRTY_NODES 1024
-#define RW_BUFFER_SIZE 128
-#define MAX_READ_AHEAD 128
-#define MAX_CACHED_READ 128
-#define MAX_CACHED_WRITE 128
+/* Flags for ReadCacheNode() */
+#define RCN_DIRTY_ONLY   (1 << 0)
+
+/* Flags for StoreCacheNode() */
+#define SCN_UPDATE_ONLY  (1 << 0)
+#define SCN_CLEAR_DIRTY  (1 << 1)
 
 /* update.c */
 void SetSectorSize(struct DiskIO *dio, ULONG sector_size);
@@ -167,10 +174,10 @@ LONG CachedWriteBlocks(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG
 /* blockcache.c */
 struct BlockCache *InitBlockCache(struct DiskIO *dio);
 void CleanupBlockCache(struct BlockCache *bc);
-BOOL BlockCacheRetrieve(struct BlockCache *bc, UQUAD sector, APTR buffer, BOOL dirty_only);
-BOOL BlockCacheStore(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, BOOL update_only);
-BOOL BlockCacheWrite(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer);
-BOOL BlockCacheFlush(struct BlockCache *bc);
+BOOL ReadCacheNode(struct BlockCache *bc, UQUAD sector, APTR buffer, ULONG flags);
+BOOL StoreCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULONG flags);
+BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULONG flags);
+BOOL FlushDirtyNodes(struct BlockCache *bc);
 
 /* mergesort.c */
 void SortBlockCacheNodes(struct MinList *list);

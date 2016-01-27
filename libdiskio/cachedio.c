@@ -35,29 +35,32 @@ LONG CachedReadBlocks(struct DiskIO *dio, UQUAD block, APTR buffer, ULONG blocks
 
 	if (MAX_CACHED_READ && blocks > MAX_CACHED_READ) {
 		res = DeviceReadBlocks(dio, block, buffer, blocks);
-		if (res) return res;
+		if (res == DIO_SUCCESS) {
+			do {
+				ReadCacheNode(bc, block++, buffer, RCN_DIRTY_ONLY);
+				buffer += dio->sector_size;
+			} while (--blocks);
+		}
 
-		do {
-			BlockCacheRetrieve(bc, block++, buffer, TRUE);
-			buffer += dio->sector_size;
-		} while (--blocks);
-
-		return DIO_SUCCESS;
+		return res;
 	} else {
 		ULONG uncached = 0;
 
 		do {
-			if (blocks > 0 && !BlockCacheRetrieve(bc, block, buffer, FALSE))
+			if (blocks > 0 && ReadCacheNode(bc, block, buffer, 0) == FALSE)
 				uncached++;
 			else if (uncached) {
 				UQUAD blk = block - uncached;
 				APTR buf = buffer - (uncached << dio->sector_shift);
+
 				res = DeviceReadBlocks(dio, blk, buf, uncached);
-				if (res) return res;
-				do {
-					BlockCacheStore(bc, blk++, buf, FALSE);
-					buf += dio->sector_size;
-				} while (--uncached);
+				if (res == DIO_SUCCESS) {
+					do {
+						StoreCacheNode(bc, blk++, buf, 0);
+						buf += dio->sector_size;
+					} while (--uncached);
+				} else
+					return res;
 			}
 			block++;
 			buffer += dio->sector_size;
@@ -69,7 +72,7 @@ LONG CachedReadBlocks(struct DiskIO *dio, UQUAD block, APTR buffer, ULONG blocks
 
 LONG CachedWriteBlocks(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG blocks) {
 	struct BlockCache *bc = dio->block_cache;
-	BOOL big_write = FALSE;
+	BOOL bigwrite = FALSE;
 	LONG res;
 
 	DEBUGF("CachedWriteBlocks(%#p, %llu, %#p, %u)\n", dio, block, buffer, (unsigned)blocks);
@@ -84,39 +87,44 @@ LONG CachedWriteBlocks(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG
 		return DIO_SUCCESS;
 
 	if (MAX_CACHED_WRITE && blocks > MAX_CACHED_WRITE)
-		big_write = TRUE;
+		bigwrite = TRUE;
 
-	if (dio->no_write_cache || big_write) {
+	if (dio->no_write_cache || bigwrite) {
+		ULONG scn_flags = SCN_CLEAR_DIRTY;
+
+		if (bigwrite)
+			scn_flags |= SCN_UPDATE_ONLY;
+
 		res = DeviceWriteBlocks(dio, block, buffer, blocks);
-		if (res) return res;
+		if (res == DIO_SUCCESS) {
+			do {
+				StoreCacheNode(bc, block++, buffer, scn_flags);
+				buffer += dio->sector_size;
+			} while (--blocks);
+		}
 
-		do {
-			BlockCacheStore(bc, block++, buffer, big_write);
-			buffer += dio->sector_size;
-		} while (--blocks);
-
-		return DIO_SUCCESS;
+		return res;
 	} else {
 		ULONG uncached = 0;
 
-		ObtainSemaphore(&bc->cache_semaphore);
-		if ((bc->num_dirty_nodes + blocks) > MAX_DIRTY_NODES) {
-			BlockCacheFlush(bc);
-		}
-		ReleaseSemaphore(&bc->cache_semaphore);
+		if ((bc->num_dirty_nodes + blocks) >= MAX_DIRTY_NODES)
+			FlushDirtyNodes(bc);
 
 		do {
-			if (blocks > 0 && !BlockCacheWrite(bc, block, buffer))
+			if (blocks > 0 && WriteCacheNode(bc, block, buffer, 0) == FALSE)
 				uncached++;
 			else if (uncached) {
 				UQUAD blk = block - uncached;
 				CONST_APTR buf = buffer - (uncached << dio->sector_shift);
+
 				res = DeviceWriteBlocks(dio, blk, buf, uncached);
-				if (res) return res;
-				do {
-					BlockCacheStore(bc, blk++, buf, FALSE);
-					buf += dio->sector_size;
-				} while (--uncached);
+				if (res == DIO_SUCCESS) {
+					do {
+						StoreCacheNode(bc, blk++, buf, SCN_CLEAR_DIRTY);
+						buf += dio->sector_size;
+					} while (--uncached);
+				} else
+					return res;
 			}
 			block++;
 			buffer += dio->sector_size;

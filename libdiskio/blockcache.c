@@ -142,7 +142,7 @@ static ULONG BlockChecksum(const ULONG *data, ULONG bytes) {
 	ULONG next_sum, sum = 0;
 	ULONG longs = bytes / sizeof(ULONG);
 
-	DEBUGF("BlockChecksum(%#p, %u)\n", data, (unsigned)bytes);
+	DEBUGF("BlockChecksum(%#p, %u)\n", data, bytes);
 
 	while (longs--) {
 		next_sum = sum + *data++;
@@ -165,12 +165,12 @@ static int CacheTreeCompareFunc(CONST_APTR key1, CONST_APTR key2) {
 		return 0;
 }
 
-BOOL BlockCacheRetrieve(struct BlockCache *bc, UQUAD sector, APTR buffer, BOOL dirty_only) {
+BOOL ReadCacheNode(struct BlockCache *bc, UQUAD sector, APTR buffer, ULONG flags) {
 	struct Splay *sn;
 	struct BlockCacheNode *bcn;
 	BOOL result = FALSE;
 
-	DEBUGF("BlockCacheRetrieve(%#p, %llu, %#p, %d)\n", bc, sector, buffer, dirty_only);
+	DEBUGF("ReadCacheNode(%#p, %llu, %#p, 0x%08x)\n", bc, sector, buffer, flags);
 
 	ObtainSemaphore(&bc->cache_semaphore);
 
@@ -188,7 +188,7 @@ BOOL BlockCacheRetrieve(struct BlockCache *bc, UQUAD sector, APTR buffer, BOOL d
 				Remove((struct Node *)&bcn->node);
 				AddHead((struct List *)&bc->dirty_list, (struct Node *)&bcn->node);
 			}
-		} else if (!dirty_only) {
+		} else if ((flags & RCN_DIRTY_ONLY) == 0) {
 			if (BlockChecksum(bcn->data, bc->sector_size) == bcn->checksum) {
 				result = TRUE;
 
@@ -214,17 +214,15 @@ BOOL BlockCacheRetrieve(struct BlockCache *bc, UQUAD sector, APTR buffer, BOOL d
 
 	ReleaseSemaphore(&bc->cache_semaphore);
 
-	DEBUGF("BlockCacheRetrieve: %d\n", res);
-
 	return result;
 }
 
-BOOL BlockCacheStore(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, BOOL update_only) {
+BOOL StoreCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULONG flags) {
 	struct Splay *sn;
 	struct BlockCacheNode *bcn;
 	BOOL result = FALSE;
 
-	DEBUGF("BlockCacheStore(%#p, %llu, %#p, %d)\n", bc, sector, buffer, update_only);
+	DEBUGF("StoreCacheNode(%#p, %llu, %#p, 0x%08x)\n", bc, sector, buffer, flags);
 
 	ObtainSemaphore(&bc->cache_semaphore);
 
@@ -236,7 +234,7 @@ BOOL BlockCacheStore(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, BOO
 
 		CopyMem((APTR)buffer, bcn->data, bc->sector_size);
 
-		if (update_only && bcn->dirty) {
+		if ((flags & SCN_CLEAR_DIRTY) != 0 && bcn->dirty) {
 			bcn->dirty = FALSE;
 			bc->num_dirty_nodes--;
 			bc->num_clean_nodes++;
@@ -255,7 +253,7 @@ BOOL BlockCacheStore(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, BOO
 				AddHead((struct List *)&bc->clean_list, (struct Node *)&bcn->node);
 			}
 		}
-	} else if (!update_only) {
+	} else if ((flags & SCN_UPDATE_ONLY) == 0) {
 		bcn = NULL;
 
 		if (bc->num_cache_nodes < MAX_CACHE_NODES) {
@@ -301,17 +299,15 @@ BOOL BlockCacheStore(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, BOO
 
 	ReleaseSemaphore(&bc->cache_semaphore);
 
-	DEBUGF("BlockCacheStore: %d\n", res);
-
 	return result;
 }
 
-BOOL BlockCacheWrite(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer) {
+BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULONG flags) {
 	struct Splay *sn;
 	struct BlockCacheNode *bcn;
 	BOOL result = FALSE;
 
-	DEBUGF("BlockCacheWrite(%#p, %llu, %#p)\n", bc, sector, buffer);
+	DEBUGF("WriteCacheNode(%#p, %llu, %#p, 0x%08x)\n", bc, sector, buffer, flags);
 
 	ObtainSemaphore(&bc->cache_semaphore);
 
@@ -380,8 +376,6 @@ BOOL BlockCacheWrite(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer) {
 
 	ReleaseSemaphore(&bc->cache_semaphore);
 
-	DEBUGF("BlockCacheWrite: %d\n", res);
-
 	return result;
 }
 
@@ -400,7 +394,7 @@ static void MoveMinList(struct MinList *dst, struct MinList *src) {
 	}
 }
 
-BOOL BlockCacheFlush(struct BlockCache *bc) {
+BOOL FlushDirtyNodes(struct BlockCache *bc) {
 	struct DiskIO *dio = bc->dio_handle;
 	struct MinNode *node;
 	struct BlockCacheNode *bcn;
