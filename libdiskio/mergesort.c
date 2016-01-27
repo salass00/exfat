@@ -148,7 +148,7 @@ static int CompareCacheNodes(struct MinNode *node1, struct MinNode *node2) {
 		return 0;
 };
 
-void SortBlockCacheNodes(struct MinList *list) {
+void SortCacheNodes(struct MinList *list) {
 	struct MinNode *head, *succ;
 
 	if (IsMinListEmpty(list) || OneInMinList(list)) return;

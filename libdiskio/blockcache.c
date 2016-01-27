@@ -19,8 +19,25 @@
 #include "diskio_internal.h"
 #include <SDI/SDI_hook.h>
 
+static void ExpungeCacheNode(struct BlockCache *bc, struct BlockCacheNode *bcn) {
+	if (bcn != NULL) {
+		Remove((struct Node *)&bcn->node);
+		RemoveSplay(&bc->cache_tree, &bcn->splay);
+
+		if (bcn->dirty)
+			bc->num_dirty_nodes--;
+		else
+			bc->num_clean_nodes--;
+
+		bc->num_cache_nodes--;
+
+		FreePooled(bc->mempool, bcn->data, bc->sector_size);
+		FreePooled(bc->mempool, bcn, sizeof(struct BlockCacheNode));
+	}
+}
+
 #ifdef __AROS__
-AROS_UFH5(int, DIO_MemHandler,
+AROS_UFH5(int, DiskIOMemHandler,
 	AROS_UFHA(APTR, data, A1),
 	AROS_UFHA(APTR, code, A5),
 	AROS_UFHA(struct ExecBase *, SysBase, A6),
@@ -29,7 +46,7 @@ AROS_UFH5(int, DIO_MemHandler,
 {
 	AROS_USERFUNC_INIT
 #else
-SAVEDS ASM int DIO_MemHandler(
+SAVEDS ASM int DiskIOMemHandler(
 	REG(a6, struct ExecBase *SysBase),
 	REG(a0, APTR custom),
 	REG(a1, APTR data))
@@ -37,29 +54,19 @@ SAVEDS ASM int DIO_MemHandler(
 #endif
 	struct MemHandlerData *memh = custom;
 	struct BlockCache *bc = data;
-	struct MinNode *node;
-	struct BlockCacheNode *bcn;
+	struct MinNode *node, *pred;
 	ULONG freed, goal;
 	BOOL done;
 
-	DEBUGF("DIO_MemHandler(%#p, %#p)\n", custom, data);
+	DEBUGF("DiskIOMemHandler(%#p, %#p, %#p)\n", SysBase, memh, bc);
 
 	if (!AttemptSemaphore(&bc->cache_semaphore))
 		return MEM_DID_NOTHING;
 
 	freed = 0;
 	goal = memh->memh_RequestSize;
-	while ((node = (struct MinNode *)RemTail((struct List *)&bc->clean_list)) != NULL) {
-		bcn = BCNFROMNODE(node);
-
-		RemoveSplay(&bc->cache_tree, &bcn->splay);
-
-		FreePooled(bc->mempool, bcn->data, bc->sector_size);
-		FreePooled(bc->mempool, bcn, sizeof(struct BlockCacheNode));
-
-		bc->num_cache_nodes--;
-		bc->num_clean_nodes--;
-
+	for (node = bc->clean_list.mlh_TailPred; (pred = node->mln_Pred) != NULL; node = pred) {
+		ExpungeCacheNode(bc, BCNFROMNODE(node));
 		freed += bc->sector_size;
 
 		if (freed >= goal)
@@ -106,7 +113,7 @@ struct BlockCache *InitBlockCache(struct DiskIO *dio) {
 	bc->mem_handler.is_Node.ln_Name = (char *)dio->devname;
 
 	bc->mem_handler.is_Data = bc;
-	bc->mem_handler.is_Code = (void (*)())DIO_MemHandler;
+	bc->mem_handler.is_Code = (void (*)())DiskIOMemHandler;
 
 	bc->mempool = CreatePool(MEMF_PUBLIC, 4096, 1024);
 	if (bc->mempool == NULL)
@@ -165,6 +172,52 @@ static int CacheTreeCompareFunc(CONST_APTR key1, CONST_APTR key2) {
 		return 0;
 }
 
+static void CacheHit(struct BlockCache *bc, struct BlockCacheNode *bcn) {
+	if (bcn->dirty) {
+		if (bc->dirty_list.mlh_Head != &bcn->node) {
+			Remove((struct Node *)&bcn->node);
+			AddHead((struct List *)&bc->dirty_list, (struct Node *)&bcn->node);
+		}
+	} else {
+		if (bc->clean_list.mlh_Head != &bcn->node) {
+			Remove((struct Node *)&bcn->node);
+			AddHead((struct List *)&bc->clean_list, (struct Node *)&bcn->node);
+		}
+	}
+}
+
+static BOOL ClearDirty(struct BlockCache *bc, struct BlockCacheNode *bcn) {
+	if (bcn->dirty == FALSE)
+		return FALSE;
+
+	Remove((struct Node *)&bcn->node);
+	bc->num_dirty_nodes--;
+
+	bcn->dirty    = FALSE;
+	bcn->checksum = BlockChecksum(bcn->data, bc->sector_size);
+
+	AddHead((struct List *)&bc->clean_list, (struct Node *)&bcn->node);
+	bc->num_clean_nodes++;
+
+	return TRUE;
+}
+
+static BOOL SetDirty(struct BlockCache *bc, struct BlockCacheNode *bcn) {
+	if (bcn->dirty)
+		return FALSE;
+
+	Remove((struct Node *)&bcn->node);
+	bc->num_clean_nodes--;
+
+	bcn->dirty    = TRUE;
+	bcn->checksum = (ULONG)-1;
+
+	AddHead((struct List *)&bc->dirty_list, (struct Node *)&bcn->node);
+	bc->num_dirty_nodes++;
+
+	return TRUE;
+}
+
 BOOL ReadCacheNode(struct BlockCache *bc, UQUAD sector, APTR buffer, ULONG flags) {
 	struct Splay *sn;
 	struct BlockCacheNode *bcn;
@@ -184,10 +237,7 @@ BOOL ReadCacheNode(struct BlockCache *bc, UQUAD sector, APTR buffer, ULONG flags
 			if (buffer != NULL)
 				CopyMem(bcn->data, buffer, bc->sector_size);
 
-			if (bc->dirty_list.mlh_Head != &bcn->node) {
-				Remove((struct Node *)&bcn->node);
-				AddHead((struct List *)&bc->dirty_list, (struct Node *)&bcn->node);
-			}
+			CacheHit(bc, bcn);
 		} else if ((flags & RCN_DIRTY_ONLY) == 0) {
 			if (BlockChecksum(bcn->data, bc->sector_size) == bcn->checksum) {
 				result = TRUE;
@@ -195,19 +245,10 @@ BOOL ReadCacheNode(struct BlockCache *bc, UQUAD sector, APTR buffer, ULONG flags
 				if (buffer != NULL)
 					CopyMem(bcn->data, buffer, bc->sector_size);
 
-				if (bc->clean_list.mlh_Head != &bcn->node) {
-					Remove((struct Node *)&bcn->node);
-					AddHead((struct List *)&bc->clean_list, (struct Node *)&bcn->node);
-				}
+				CacheHit(bc, bcn);
 			} else {
-				Remove((struct Node *)&bcn->node);
-				RemoveSplay(&bc->cache_tree, &bcn->splay);
-
-				FreePooled(bc->mempool, bcn->data, bc->sector_size);
-				FreePooled(bc->mempool, bcn, sizeof(struct BlockCacheNode));
-
-				bc->num_clean_nodes--;
-				bc->num_cache_nodes--;
+				/* Throw away corrupted cache data */
+				ExpungeCacheNode(bc, bcn);
 			}
 		}
 	}
@@ -234,25 +275,12 @@ BOOL StoreCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 
 		CopyMem((APTR)buffer, bcn->data, bc->sector_size);
 
-		if ((flags & SCN_CLEAR_DIRTY) != 0 && bcn->dirty) {
-			bcn->dirty = FALSE;
-			bc->num_dirty_nodes--;
-			bc->num_clean_nodes++;
-		}
-
-		if (bcn->dirty) {
-			if (bc->dirty_list.mlh_Head != &bcn->node) {
-				Remove((struct Node *)&bcn->node);
-				AddHead((struct List *)&bc->dirty_list, (struct Node *)&bcn->node);
-			}
-		} else {
+		if (bcn->dirty == FALSE)
 			bcn->checksum = BlockChecksum(bcn->data, bc->sector_size);
+		else if ((flags & SCN_CLEAR_DIRTY) != 0)
+			ClearDirty(bc, bcn);
 
-			if (bc->clean_list.mlh_Head != &bcn->node) {
-				Remove((struct Node *)&bcn->node);
-				AddHead((struct List *)&bc->clean_list, (struct Node *)&bcn->node);
-			}
-		}
+		CacheHit(bc, bcn);
 	} else if ((flags & SCN_UPDATE_ONLY) == 0) {
 		bcn = NULL;
 
@@ -283,7 +311,7 @@ BOOL StoreCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 		if (bcn != NULL) {
 			result = TRUE;
 
-			CopyMem((APTR)buffer, bcn->data, bc->sector_size);
+			CopyMem(buffer, bcn->data, bc->sector_size);
 
 			bcn->sector   = sector;
 			bcn->dirty    = FALSE;
@@ -313,23 +341,18 @@ BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 
 	sn = FindSplay(&bc->cache_tree, CacheTreeCompareFunc, &sector);
 	if (sn != NULL) {
-		result = TRUE;
-
 		bcn = BCNFROMSPLAY(sn);
 
-		CopyMem((APTR)buffer, bcn->data, bc->sector_size);
+		if (bcn->dirty == FALSE && bc->num_dirty_nodes < MAX_DIRTY_NODES)
+			SetDirty(bc, bcn);
 
-		if (!bcn->dirty) {
-			bcn->checksum = -1;
-			bcn->dirty = TRUE;
-			bc->num_clean_nodes--;
-			bc->num_dirty_nodes++;
+		if (bcn->dirty) {
+			result = TRUE;
+
+			CopyMem((CONST_APTR)buffer, bcn->data, bc->sector_size);
 		}
 
-		if (bc->dirty_list.mlh_Head != &bcn->node) {
-			Remove((struct Node *)&bcn->node);
-			AddHead((struct List *)&bc->dirty_list, (struct Node *)&bcn->node);
-		}
+		CacheHit(bc, bcn);
 	} else if (bc->num_dirty_nodes < MAX_DIRTY_NODES) {
 		bcn = NULL;
 
@@ -360,7 +383,7 @@ BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 		if (bcn != NULL) {
 			result = TRUE;
 
-			CopyMem((APTR)buffer, bcn->data, bc->sector_size);
+			CopyMem(buffer, bcn->data, bc->sector_size);
 
 			bcn->sector   = sector;
 			bcn->dirty    = TRUE;
@@ -396,25 +419,26 @@ static void MoveMinList(struct MinList *dst, struct MinList *src) {
 
 BOOL FlushDirtyNodes(struct BlockCache *bc) {
 	struct DiskIO *dio = bc->dio_handle;
-	struct MinNode *node;
+	struct MinNode *node, *succ;
 	struct BlockCacheNode *bcn;
 	struct MinList write_list;
 	struct MinList failed_write_list;
 	UQUAD sector;
 	ULONG sectors;
+	ULONG errors = 0;
 	APTR buffer;
-	BOOL result;
 
-	DEBUGF("BlockCacheFlush(%#p)\n", bc);
+	DEBUGF("FlushDirtyNodes(%#p)\n", bc);
 
-	if (IsMinListEmpty(&bc->dirty_list)) {
-		DEBUGF("BlockCacheFlush - no dirty blocks in cache\n");
+	if (dio->no_write_cache)
 		return TRUE;
-	}
+
+	if (IsMinListEmpty(&bc->dirty_list))
+		return TRUE;
 
 	ObtainSemaphore(&bc->cache_semaphore);
 
-	SortBlockCacheNodes(&bc->dirty_list);
+	SortCacheNodes(&bc->dirty_list);
 
 	NEWLIST(&write_list);
 	NEWLIST(&failed_write_list);
@@ -435,22 +459,13 @@ BOOL FlushDirtyNodes(struct BlockCache *bc) {
 			LONG res;
 
 			res = CachedWriteBlocks(dio, sector, bc->rw_buffer, sectors);
-			if (res == 0) {
-				struct MinNode *node2;
-				struct BlockCacheNode *bcn2;
-
-				while ((node2 = (struct MinNode *)RemHead((struct List *)&write_list)) != NULL) {
-					bcn2 = BCNFROMNODE(node2);
-
-					bcn2->checksum = BlockChecksum(bcn2->data, bc->sector_size);
-					bcn2->dirty = FALSE;
-					bc->num_dirty_nodes--;
-					bc->num_clean_nodes++;
-
-					AddHead((struct List *)&bc->clean_list, (struct Node *)&bcn2->node);
-				}
-			} else
+			if (res == DIO_SUCCESS) {
+				for (node = write_list.mlh_Head; (succ = node->mln_Succ) != NULL; node = succ)
+					ClearDirty(bc, BCNFROMNODE(node));
+			} else {
 				MoveMinList(&failed_write_list, &write_list);
+				errors++;
+			}
 
 			sectors = 0;
 		}
@@ -467,15 +482,10 @@ BOOL FlushDirtyNodes(struct BlockCache *bc) {
 			buffer += bc->sector_size;
 		}
 	} while (bcn != NULL);
-
 	MoveMinList(&bc->dirty_list, &failed_write_list);
-
-	result = IsMinListEmpty(&bc->dirty_list);
 
 	ReleaseSemaphore(&bc->cache_semaphore);
 
-	DEBUGF("BlockCacheFlush: %d\n", res);
-
-	return result;
+	return (errors == 0) ? TRUE : FALSE;
 }
 

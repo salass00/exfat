@@ -180,7 +180,7 @@ BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 BOOL FlushDirtyNodes(struct BlockCache *bc);
 
 /* mergesort.c */
-void SortBlockCacheNodes(struct MinList *list);
+void SortCacheNodes(struct MinList *list);
 
 #endif
 
