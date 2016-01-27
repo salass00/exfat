@@ -34,6 +34,8 @@ typedef int (*SplayCmpFunc)(CONST_APTR key1, CONST_APTR key2);
 
 void InsertSplay(struct Splay **root, SplayCmpFunc cmpfunc, struct Splay *sn, CONST_APTR key);
 struct Splay *FindSplay(struct Splay **root, SplayCmpFunc cmpfunc, CONST_APTR key);
+struct Splay *FirstSplay(struct Splay **root);
+struct Splay *LastSplay(struct Splay **root);
 struct Splay *PrevSplay(struct Splay *sn);
 struct Splay *NextSplay(struct Splay *sn);
 void RemoveSplay(struct Splay **root, struct Splay *sn);

@@ -161,6 +161,32 @@ struct Splay *FindSplay(struct Splay **root, SplayCmpFunc cmpfunc, CONST_APTR ke
 	return sn;
 }
 
+struct Splay *FirstSplay(struct Splay **root) {
+	struct Splay *sn = *root;
+
+	if (sn == NULL)
+		return NULL;
+
+	while (sn->left != NULL) {
+		sn = sn->left;
+	}
+
+	return sn;
+}
+
+struct Splay *LastSplay(struct Splay **root) {
+	struct Splay *sn = *root;
+
+	if (sn == NULL)
+		return NULL;
+
+	while (sn->right != NULL) {
+		sn = sn->right;
+	}
+
+	return sn;
+}
+
 struct Splay *PrevSplay(struct Splay *sn) {
 	if (sn == NULL)
 		return NULL;
