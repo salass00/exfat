@@ -401,8 +401,6 @@ static void MoveMinList(struct MinList *dst, struct MinList *src) {
 }
 
 BOOL BlockCacheFlush(struct BlockCache *bc) {
-	DEBUGF("BlockCacheFlush(%#p)\n", bc);
-
 	struct DiskIO *dio = bc->dio_handle;
 	struct MinNode *node;
 	struct BlockCacheNode *bcn;
@@ -412,6 +410,8 @@ BOOL BlockCacheFlush(struct BlockCache *bc) {
 	ULONG sectors;
 	APTR buffer;
 	BOOL result;
+
+	DEBUGF("BlockCacheFlush(%#p)\n", bc);
 
 	if (IsMinListEmpty(&bc->dirty_list)) {
 		DEBUGF("BlockCacheFlush - no dirty blocks in cache\n");
@@ -440,7 +440,7 @@ BOOL BlockCacheFlush(struct BlockCache *bc) {
 		{
 			LONG res;
 
-			res = WriteBlocksUncached(dio, sector, bc->rw_buffer, sectors);
+			res = CachedWriteBlocks(dio, sector, bc->rw_buffer, sectors);
 			if (res == 0) {
 				struct MinNode *node2;
 				struct BlockCacheNode *bcn2;

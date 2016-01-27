@@ -149,8 +149,20 @@ struct DiskIO {
 #define MAX_DIRTY_NODES 1024
 #define RW_BUFFER_SIZE 128
 #define MAX_READ_AHEAD 128
-//#define MAX_CACHED_READ 128
-//#define MAX_CACHED_WRITE 128
+#define MAX_CACHED_READ 128
+#define MAX_CACHED_WRITE 128
+
+/* update.c */
+void SetSectorSize(struct DiskIO *dio, ULONG sector_size);
+
+/* deviceio.c */
+LONG DeviceReadBlocks(struct DiskIO *dio, UQUAD block, APTR buffer, ULONG blocks);
+LONG DeviceWriteBlocks(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG blocks);
+LONG DeviceUpdate(struct DiskIO *dio);
+
+/* cachedio.c */
+LONG CachedReadBlocks(struct DiskIO *dio, UQUAD block, APTR buffer, ULONG blocks);
+LONG CachedWriteBlocks(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG blocks);
 
 /* blockcache.c */
 struct BlockCache *InitBlockCache(struct DiskIO *dio);
@@ -162,14 +174,6 @@ BOOL BlockCacheFlush(struct BlockCache *bc);
 
 /* mergesort.c */
 void SortBlockCacheNodes(struct MinList *list);
-
-/* diskio.c */
-void ClearSectorSize(struct DiskIO *dio);
-void SetSectorSize(struct DiskIO *dio, ULONG sector_size);
-LONG ReadBlocksUncached(struct DiskIO *dio, UQUAD block, APTR buffer, ULONG blocks);
-LONG WriteBlocksUncached(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG blocks);
-LONG ReadBlocksCached(struct DiskIO *dio, UQUAD block, APTR buffer, ULONG blocks);
-LONG WriteBlocksCached(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG blocks);
 
 #endif
 

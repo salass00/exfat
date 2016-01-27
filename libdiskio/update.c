@@ -18,6 +18,33 @@
 
 #include "diskio_internal.h"
 
+static void ClearSectorSize(struct DiskIO *dio) {
+	dio->sector_size = 0;
+	dio->sector_shift = 0;
+	dio->sector_mask = 0;
+}
+
+void SetSectorSize(struct DiskIO *dio, ULONG sector_size) {
+	ULONG shift = 0;
+	UQUAD size = 1;
+
+	dio->sector_size = sector_size;
+	dio->sector_shift = 0;
+	dio->sector_mask = 0;
+
+	while (size < sector_size) {
+		shift++;
+		size <<= 1;
+	}
+
+	if (size == sector_size) {
+		dio->sector_shift = shift;
+		dio->sector_mask = size - 1;
+	} else {
+		DEBUGF("SetSectorSize - sector size (%u) is not a power of 2!\n", (unsigned)sector_size);
+	}
+}
+
 void DIO_Update(struct DiskIO *dio) {
 	DEBUGF("DIO_Update(%#p)\n", dio);
 

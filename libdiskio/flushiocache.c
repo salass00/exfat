@@ -19,6 +19,8 @@
 #include "diskio_internal.h"
 
 int DIO_FlushIOCache(struct DiskIO *dio) {
+	LONG res = DIO_SUCCESS;
+
 	DEBUGF("DIO_FlushIOCache(%#p)\n", dio);
 
 	if (dio == NULL || dio->disk_ok == FALSE)
@@ -34,24 +36,9 @@ int DIO_FlushIOCache(struct DiskIO *dio) {
 	}
 
 	if (dio->doupdate) {
-		dio->doupdate = FALSE;
-
-		if (dio->update_cmd != CMD_INVALID) {
-			struct IOExtTD *iotd = dio->diskiotd;
-			int error;
-
-			iotd->iotd_Req.io_Command = dio->update_cmd;
-			iotd->iotd_Count = dio->disk_id;
-			error = DoIO((struct IORequest *)iotd);
-
-			if (error != 0) {
-				DEBUGF("Update command (%u) failed - %d\n",
-					dio->update_cmd, error);
-				return DIO_ERROR_UNSPECIFIED;
-			}
-		}
+		res = DeviceUpdate(dio);
 	}
 
-	return DIO_SUCCESS;
+	return res;
 }
 

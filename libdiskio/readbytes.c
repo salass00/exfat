@@ -31,8 +31,7 @@ int DIO_ReadBytes(struct DiskIO *dio, UQUAD offset, APTR buffer, ULONG bytes)
 	int res = DIO_SUCCESS;
 
 	do {
-#ifdef MAX_READ_AHEAD
-		if (!dio->no_cache) {
+		if (!dio->no_cache && MAX_READ_AHEAD > 1) {
 			blocks = (boffs + bytes + dio->sector_mask) >> dio->sector_shift;
 			while (blocks < MAX_READ_AHEAD && (block + blocks) < dio->total_sectors &&
 				!BlockCacheRetrieve(dio->block_cache, block + blocks, NULL, FALSE))
@@ -41,17 +40,16 @@ int DIO_ReadBytes(struct DiskIO *dio, UQUAD offset, APTR buffer, ULONG bytes)
 			}
 			blen = blocks << dio->sector_shift;
 			if (blocks <= MAX_READ_AHEAD) {
-				res = ReadBlocksCached(dio, block, sector_buffer, blocks);
+				res = CachedReadBlocks(dio, block, sector_buffer, blocks);
 				if (res) break;
 				CopyMem(sector_buffer + boffs, buffer, bytes);
 				return DIO_SUCCESS;
 			}
 		}
-#endif
 
 		if (boffs) {
 			blen = MIN(dio->sector_size - boffs, bytes);
-			res = ReadBlocksCached(dio, block, sector_buffer, 1);
+			res = CachedReadBlocks(dio, block, sector_buffer, 1);
 			if (res) break;
 			CopyMem(sector_buffer + boffs, buffer, blen);
 			buffer += blen;
@@ -62,7 +60,7 @@ int DIO_ReadBytes(struct DiskIO *dio, UQUAD offset, APTR buffer, ULONG bytes)
 		if (bytes >= dio->sector_size) {
 			blocks = bytes >> dio->sector_shift;
 			blen = blocks << dio->sector_shift;
-			res = ReadBlocksCached(dio, block, buffer, blocks);
+			res = CachedReadBlocks(dio, block, buffer, blocks);
 			if (res) break;
 			buffer += blen;
 			bytes -= blen;
@@ -70,7 +68,7 @@ int DIO_ReadBytes(struct DiskIO *dio, UQUAD offset, APTR buffer, ULONG bytes)
 		}
 
 		if (bytes) {
-			res = ReadBlocksCached(dio, block, sector_buffer, 1);
+			res = CachedReadBlocks(dio, block, sector_buffer, 1);
 			if (res) break;
 			CopyMem(sector_buffer, buffer, bytes);
 		}

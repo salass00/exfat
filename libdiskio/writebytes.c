@@ -35,10 +35,10 @@ int DIO_WriteBytes(struct DiskIO *dio, UQUAD offset, CONST_APTR buffer, ULONG by
 			ULONG blen = MIN(dio->sector_size - boffs, bytes);
 			if ((sector_buffer = AllocPooled(dio->mempool, dio->sector_size)) == NULL)
 				return TDERR_NoMem;
-			res = ReadBlocksCached(dio, block, sector_buffer, 1);
+			res = CachedReadBlocks(dio, block, sector_buffer, 1);
 			if (res) break;
 			CopyMem((APTR)buffer, sector_buffer + boffs, blen);
-			res = WriteBlocksCached(dio, block, sector_buffer, 1);
+			res = CachedWriteBlocks(dio, block, sector_buffer, 1);
 			if (res) break;
 			buffer += blen;
 			bytes -= blen;
@@ -48,7 +48,7 @@ int DIO_WriteBytes(struct DiskIO *dio, UQUAD offset, CONST_APTR buffer, ULONG by
 		if (bytes >= dio->sector_size) {
 			ULONG blocks = bytes >> dio->sector_shift;
 			ULONG blen = blocks << dio->sector_shift;
-			res = WriteBlocksCached(dio, block, buffer, blocks);
+			res = CachedWriteBlocks(dio, block, buffer, blocks);
 			if (res) break;
 			buffer += blen;
 			bytes -= blen;
@@ -58,10 +58,10 @@ int DIO_WriteBytes(struct DiskIO *dio, UQUAD offset, CONST_APTR buffer, ULONG by
 		if (bytes) {
 			if (sector_buffer == NULL && (sector_buffer = AllocPooled(dio->mempool, dio->sector_size)) == NULL)
 				return TDERR_NoMem;
-			res = ReadBlocksCached(dio, block, sector_buffer, 1);
+			res = CachedReadBlocks(dio, block, sector_buffer, 1);
 			if (res) break;
 			CopyMem((APTR)buffer, sector_buffer, bytes);
-			res = WriteBlocksCached(dio, block, sector_buffer, 1);
+			res = CachedWriteBlocks(dio, block, sector_buffer, 1);
 			if (res) break;
 		}
 	} while (0);

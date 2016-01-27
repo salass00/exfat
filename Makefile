@@ -40,7 +40,8 @@ LIBDISKIO_OBJS := \
 	libdiskio/readbytes.o \
 	libdiskio/writebytes.o \
 	libdiskio/flushiocache.o \
-	libdiskio/diskio.o \
+	libdiskio/deviceio.o \
+	libdiskio/cachedio.o \
 	libdiskio/blockcache.o \
 	libdiskio/splay.o \
 	libdiskio/mergesort.o
