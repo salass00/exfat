@@ -88,31 +88,50 @@ struct BlockCache {
 	APTR                   mempool;
 	ULONG                  sector_size;
 	ULONG                  sector_shift;
+	APTR                   write_buffer;
+	ULONG                  write_buffer_size;
 	struct SignalSemaphore cache_semaphore;
 	struct MinList         probation_list;
 	struct MinList         protected_list;
 	struct MinList         dirty_list;
 	struct Splay          *cache_tree;
+	struct Splay          *range_tree;
 	ULONG                  num_protected_nodes;
 	ULONG                  num_dirty_nodes;
 	ULONG                  num_cache_nodes;
 	ULONG                  max_protected_nodes;
 	ULONG                  max_dirty_nodes;
 	ULONG                  max_cache_nodes;
-	APTR                   write_buffer;
-	ULONG                  write_buffer_size;
+	ULONG                  high_threshold;
+	ULONG                  low_threshold;
 	struct Interrupt       mem_handler;
 	BOOL                   write_cache_enabled;
 };
 
+struct BlockRange {
+	UQUAD first;
+	UQUAD last;
+};
+
+struct BlockRangeNode {
+	struct Splay      splay;
+	struct MinNode    node;
+	struct BlockRange range;
+	struct MinList    list;
+};
+
+#define BRNFROMSPLAY(s) container_of(s, struct BlockRangeNode, splay)
+#define BRNFROMNODE(n)  container_of(n, struct BlockRangeNode, node)
+
 struct BlockCacheNode {
-	struct Splay   splay;
-	struct MinNode node;
-	UQUAD          sector;
-	UBYTE          type;
-	UBYTE          pad[3];
-	APTR           data;
-	ULONG          checksum;
+	struct Splay           splay;
+	struct MinNode         node;
+	UQUAD                  sector;
+	APTR                   data;
+	struct BlockRangeNode *range_node;
+	UBYTE                  type;
+	UBYTE                  pad[3];
+	ULONG                  checksum;
 };
 
 #define BCNFROMSPLAY(s) container_of(s, struct BlockCacheNode, splay)
@@ -215,7 +234,7 @@ void ExpungeCacheNode(struct BlockCache *bc, struct BlockCacheNode *bcn);
 BOOL ReadCacheNode(struct BlockCache *bc, UQUAD sector, APTR buffer, ULONG flags);
 BOOL StoreCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULONG flags);
 BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULONG flags);
-BOOL FlushDirtyNodes(struct BlockCache *bc);
+BOOL FlushDirtyNodes(struct BlockCache *bc, ULONG max_dirty_nodes);
 
 /* memhandler.c */
 #ifdef __AROS__
@@ -231,9 +250,6 @@ SAVEDS ASM int DiskIOMemHandler(
 	REG(a0, APTR custom),
 	REG(a1, APTR data));
 #endif
-
-/* mergesort.c */
-void SortCacheNodes(struct MinList *list);
 
 #endif
 

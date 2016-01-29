@@ -44,8 +44,7 @@ LIBDISKIO_OBJS := \
 	libdiskio/cachedio.o \
 	libdiskio/blockcache.o \
 	libdiskio/memhandler.o \
-	libdiskio/splay.o \
-	libdiskio/mergesort.o
+	libdiskio/splay.o
 
 LIBSUPPORT_OBJS := \
 	amigaos_support/debugf.o \

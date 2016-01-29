@@ -27,7 +27,7 @@ int DIO_FlushIOCache(struct DiskIO *dio) {
 		return DIO_ERROR_UNSPECIFIED;
 
 	if (dio->block_cache != NULL && dio->write_cache_enabled) {
-		if (FlushDirtyNodes(dio->block_cache) == FALSE) {
+		if (FlushDirtyNodes(dio->block_cache, 0) == FALSE) {
 			DEBUGF("DIO_FlushIOCache failed\n");
 			return DIO_ERROR_UNSPECIFIED;
 		}

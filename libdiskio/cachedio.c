@@ -108,7 +108,7 @@ LONG CachedWriteBlocks(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG
 		ULONG uncached = 0;
 
 		if ((bc->num_dirty_nodes + blocks) >= bc->max_dirty_nodes)
-			FlushDirtyNodes(bc);
+			FlushDirtyNodes(bc, bc->low_threshold);
 
 		do {
 			if (blocks > 0 && WriteCacheNode(bc, block, buffer, 0) == FALSE)

@@ -17,9 +17,13 @@
  */
 
 #include "diskio_internal.h"
+#include <stdint.h>
 
-#define PERCENT_PROTECTED 30
-#define PERCENT_DIRTY     30
+#define PERCENT_PROTECTED      30
+#define PERCENT_DIRTY          30
+
+#define HIGH_THRESHOLD_PERCENT 60
+#define LOW_THRESHOLD_PERCENT  30
 
 struct BlockCache *InitBlockCache(struct DiskIO *dio) {
 	struct BlockCache *bc;
@@ -76,6 +80,9 @@ struct BlockCache *InitBlockCache(struct DiskIO *dio) {
 
 	bc->max_protected_nodes = ((UQUAD)bc->max_cache_nodes * PERCENT_PROTECTED + 50) / 100;
 	bc->max_dirty_nodes     = ((UQUAD)bc->max_cache_nodes * PERCENT_DIRTY     + 50) / 100;
+
+	bc->high_threshold = ((UQUAD)bc->max_dirty_nodes * HIGH_THRESHOLD_PERCENT + 50) / 100;
+	bc->low_threshold  = ((UQUAD)bc->max_dirty_nodes * LOW_THRESHOLD_PERCENT  + 50) / 100;
 
 	if (bc->write_cache_enabled) {
 		ULONG max_buffer_size;
@@ -183,33 +190,165 @@ void ExpungeCacheNode(struct BlockCache *bc, struct BlockCacheNode *bcn) {
 	}
 }
 
+static void MoveMinList(struct MinList *dst, struct MinList *src) {
+	if (!IsMinListEmpty(src)) {
+		struct MinNode *head = src->mlh_Head;
+		struct MinNode *tail = src->mlh_TailPred;
+
+		dst->mlh_TailPred->mln_Succ = head;
+		head->mln_Pred = dst->mlh_TailPred;
+
+		dst->mlh_TailPred = tail;
+		tail->mln_Succ = (struct MinNode *)&dst->mlh_Tail;
+
+		NEWLIST(src);
+	}
+}
+
+static int RangeTreeNeighborFunc(CONST_APTR key1, CONST_APTR key2) {
+	UQUAD sector = *(const UQUAD *)key1;
+	const struct BlockRange *range = key2;
+	UQUAD first = range->first;
+	UQUAD last  = range->last;
+
+	if (first > 0) first--;
+	if (last < UINT64_MAX) last++;
+
+	if (sector > last)
+		return 1;
+	else if (sector < first)
+		return -1;
+	else
+		return 0;
+}
+
+static int RangeTreeCompareFunc(CONST_APTR key1, CONST_APTR key2) {
+	const struct BlockRange *range1 = key1;
+	const struct BlockRange *range2 = key2;
+
+	if (range1->first > range2->last)
+		return 1;
+	else if (range1->last < range2->first)
+		return -1;
+	else
+		return 0;
+}
+
+static struct BlockRangeNode *GetBlockRange(struct BlockCache *bc, UQUAD sector) {
+	struct Splay *sn;
+	struct BlockRangeNode *brn;
+
+	sn = FindSplay(&bc->range_tree, RangeTreeNeighborFunc, &sector);
+	if (sn != NULL) {
+		brn = BRNFROMSPLAY(sn);
+		if (sector < brn->range.first)
+			brn->range.first = sector;
+		else
+			brn->range.last = sector;
+	} else {
+		brn = AllocPooled(bc->mempool, sizeof(struct BlockRangeNode));
+		if (brn != NULL) {
+			brn->range.first = sector;
+			brn->range.last  = sector;
+
+			NEWLIST(&brn->list);
+
+			InsertSplay(&bc->range_tree, RangeTreeCompareFunc, &brn->splay, &brn->range);
+			AddHead((struct List *)&bc->dirty_list, (struct Node *)&brn->node);
+		}
+	}
+
+	return brn;
+}
+
+static void ExpungeBlockRange(struct BlockCache *bc, struct BlockRangeNode *brn) {
+	if (brn != NULL) {
+		Remove((struct Node *)&brn->node);
+		RemoveSplay(&bc->range_tree, &brn->splay);
+
+		FreePooled(bc->mempool, brn, sizeof(struct BlockRangeNode));
+	}
+}
+
+static struct BlockRangeNode *MergeBlockRanges(struct BlockCache *bc, struct BlockRangeNode *brn1, struct BlockRangeNode *brn2) {
+	struct MinNode *node, *succ;
+	struct BlockCacheNode *bcn;
+
+	brn1->range.last = brn2->range.last;
+
+	/* Need to update the range_node pointers. */
+	for (node = brn2->list.mlh_Head; (succ = node->mln_Succ) != NULL; node = succ) {
+		bcn = BCNFROMNODE(node);
+		bcn->range_node = brn1;
+	}
+
+	MoveMinList(&brn1->list, &brn2->list);
+
+	ExpungeBlockRange(bc, brn2);
+
+	return brn1;
+}
+
+static struct BlockRangeNode *AddToBlockRange(struct BlockCache *bc, struct BlockRangeNode *brn, struct BlockCacheNode *bcn) {
+	struct Splay *sn;
+	struct BlockRangeNode *brn2;
+
+	if (bcn->sector == brn->range.first) {
+		AddHead((struct List *)&brn->list, (struct Node *)&bcn->node);
+
+		sn = PrevSplay(&brn->splay);
+		if (sn != NULL) {
+			brn2 = BRNFROMSPLAY(sn);
+			if ((brn2->range.last + 1) == brn->range.first)
+				brn = MergeBlockRanges(bc, brn2, brn);
+		}
+	} else {
+		AddTail((struct List *)&brn->list, (struct Node *)&bcn->node);
+
+		sn = NextSplay(&brn->splay);
+		if (sn != NULL) {
+			brn2 = BRNFROMSPLAY(sn);
+			if ((brn->range.last + 1) == brn2->range.first)
+				brn = MergeBlockRanges(bc, brn, brn2);
+		}
+	}
+
+	return brn;
+}
+
 static struct BlockCacheNode *AddSector(struct BlockCache *bc, UQUAD sector, BOOL dirty) {
 	struct BlockCacheNode *bcn;
+	struct BlockRangeNode *brn;
 	APTR data;
 
 	bcn = AllocPooled(bc->mempool, sizeof(struct BlockCacheNode));
 	data = AllocPooled(bc->mempool, bc->sector_size);
 	if (bcn != NULL && data != NULL) {
-		bcn->sector   = sector;
-		bcn->data     = data;
-		bcn->checksum = (ULONG)-1;
+		if (dirty) brn = GetBlockRange(bc, sector);
 
-		if (dirty == FALSE) {
-			bcn->type = BCN_PROBATION;
-			AddHead((struct List *)&bc->probation_list, (struct Node *)&bcn->node);
-		} else {
-			bcn->type = BCN_DIRTY;
-			AddHead((struct List *)&bc->dirty_list, (struct Node *)&bcn->node);
-			bc->num_dirty_nodes++;
+		if (dirty == FALSE || brn != NULL) {
+			bcn->sector     = sector;
+			bcn->data       = data;
+			bcn->range_node = NULL;
+			bcn->checksum   = (ULONG)-1;
+
+			if (dirty == FALSE) {
+				bcn->type = BCN_PROBATION;
+				AddHead((struct List *)&bc->probation_list, (struct Node *)&bcn->node);
+			} else {
+				bcn->type       = BCN_DIRTY;
+				bcn->range_node = AddToBlockRange(bc, brn, bcn);
+				bc->num_dirty_nodes++;
+			}
+
+			InsertSector(&bc->cache_tree, bcn);
+			bc->num_cache_nodes++;
+
+			if (bc->num_cache_nodes > bc->max_cache_nodes)
+				ExpungeCacheNode(bc, BCNFROMNODE(bc->probation_list.mlh_TailPred));
+
+			return bcn;
 		}
-
-		InsertSector(&bc->cache_tree, bcn);
-		bc->num_cache_nodes++;
-
-		if (bc->num_cache_nodes > bc->max_cache_nodes)
-			ExpungeCacheNode(bc, BCNFROMNODE(bc->probation_list.mlh_TailPred));
-
-		return bcn;
 	}
 
 	if (data != NULL) FreePooled(bc->mempool, data, bc->sector_size);
@@ -219,6 +358,8 @@ static struct BlockCacheNode *AddSector(struct BlockCache *bc, UQUAD sector, BOO
 }
 
 static void CacheHit(struct BlockCache *bc, struct BlockCacheNode *bcn) {
+	struct BlockRangeNode *brn;
+
 	switch (bcn->type) {
 
 		case BCN_PROBATION:
@@ -246,17 +387,65 @@ static void CacheHit(struct BlockCache *bc, struct BlockCacheNode *bcn) {
 			break;
 
 		case BCN_DIRTY:
-			if (bc->dirty_list.mlh_Head != &bcn->node) {
-				Remove((struct Node *)&bcn->node);
-				AddHead((struct List *)&bc->dirty_list, (struct Node *)&bcn->node);
+			brn = bcn->range_node;
+			if (bc->dirty_list.mlh_Head != &brn->node) {
+				Remove((struct Node *)&brn->node);
+				AddHead((struct List *)&bc->dirty_list, (struct Node *)&brn->node);
 			}
 			break;
 
 	}
 }
 
+static struct BlockRangeNode *SplitBlockRange(struct BlockCache *bc, struct BlockRangeNode *brn1, struct BlockCacheNode *bcn) {
+	struct BlockRangeNode *brn2;
+	struct MinNode *node, *succ;
+	struct BlockCacheNode *bcn2;
+
+	brn2 = AllocPooled(bc->mempool, sizeof(struct BlockRangeNode));
+	if (brn2 != NULL) {
+		brn1->range.last  = bcn->sector;
+
+		brn2->range.first = bcn->sector + 1;
+		brn2->range.last  = brn1->range.last;
+
+		NEWLIST(&brn2->list);
+
+		/* Need to update the range_node pointers. */
+		for (node = bcn->node.mln_Succ; (succ = node->mln_Succ) != NULL; node = succ) {
+			bcn2 = BCNFROMNODE(node);
+			bcn2->range_node = brn2;
+		}
+
+		/* Connect the tail nodes to the new list */
+		brn2->list.mlh_Head = bcn->node.mln_Succ;
+		brn2->list.mlh_Head->mln_Pred = brn2->list.mlh_TailPred;
+		brn2->list.mlh_TailPred = brn1->list.mlh_TailPred;
+		brn2->list.mlh_TailPred->mln_Succ = (struct MinNode *)&brn2->list.mlh_Tail;
+
+		/* And disconnect them from the old list */
+		brn1->list.mlh_TailPred = &bcn->node;
+		bcn->node.mln_Succ = (struct MinNode *)&brn1->list.mlh_Tail;
+
+		InsertSplay(&bc->range_tree, RangeTreeCompareFunc, &brn2->splay, &brn2->range);
+		Insert((struct List *)&bc->dirty_list, (struct Node *)&brn2->node, (struct Node *)&brn1->node);
+	}
+
+	return brn2;
+}
+
 static BOOL ClearDirty(struct BlockCache *bc, struct BlockCacheNode *bcn) {
+	struct BlockRangeNode *brn;
+
 	if (bcn->type != BCN_DIRTY)
+		return FALSE;
+
+	brn = bcn->range_node;
+	if (bcn->sector == brn->range.first)
+		brn->range.first++;
+	else if (bcn->sector == brn->range.last)
+		brn->range.last--;
+	else if (!SplitBlockRange(bc, brn, bcn))
 		return FALSE;
 
 	Remove((struct Node *)&bcn->node);
@@ -267,11 +456,21 @@ static BOOL ClearDirty(struct BlockCache *bc, struct BlockCacheNode *bcn) {
 
 	AddHead((struct List *)&bc->probation_list, (struct Node *)&bcn->node);
 
+	/* Remove block range if empty. */
+	if (IsMinListEmpty(&brn->list))
+		ExpungeBlockRange(bc, brn);
+
 	return TRUE;
 }
 
 static BOOL SetDirty(struct BlockCache *bc, struct BlockCacheNode *bcn) {
+	struct BlockRangeNode *brn;
+
 	if (bcn->type == BCN_DIRTY)
+		return FALSE;
+
+	brn = GetBlockRange(bc, bcn->sector);
+	if (brn == NULL)
 		return FALSE;
 
 	Remove((struct Node *)&bcn->node);
@@ -289,7 +488,7 @@ static BOOL SetDirty(struct BlockCache *bc, struct BlockCacheNode *bcn) {
 	bcn->type     = BCN_DIRTY;
 	bcn->checksum = (ULONG)-1;
 
-	AddHead((struct List *)&bc->dirty_list, (struct Node *)&bcn->node);
+	bcn->range_node = AddToBlockRange(bc, brn, bcn);
 	bc->num_dirty_nodes++;
 
 	return TRUE;
@@ -411,33 +610,17 @@ BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 	return result;
 }
 
-static void MoveMinList(struct MinList *dst, struct MinList *src) {
-	if (!IsMinListEmpty(src)) {
-		struct MinNode *head = src->mlh_Head;
-		struct MinNode *tail = src->mlh_TailPred;
-
-		dst->mlh_TailPred->mln_Succ = head;
-		head->mln_Pred = dst->mlh_TailPred;
-
-		dst->mlh_TailPred = tail;
-		tail->mln_Succ = (struct MinNode *)&dst->mlh_Tail;
-
-		NEWLIST(src);
-	}
-}
-
-BOOL FlushDirtyNodes(struct BlockCache *bc) {
-	struct DiskIO *dio = bc->dio_handle;
-	struct MinNode *node, *succ;
+BOOL FlushDirtyNodes(struct BlockCache *bc, ULONG max_dirty_nodes) {
+	struct MinNode *node, *pred, *succ;
+	struct BlockRangeNode *brn;
 	struct BlockCacheNode *bcn;
-	struct MinList write_list;
-	struct MinList failed_write_list;
 	UQUAD sector;
-	ULONG sectors;
+	ULONG sectors, done, todo;
 	ULONG errors = 0;
 	APTR buffer;
+	LONG res;
 
-	DEBUGF("FlushDirtyNodes(%#p)\n", bc);
+	DEBUGF("FlushDirtyNodes(%#p, %u)\n", bc, max_dirty_nodes);
 
 	if (bc->write_cache_enabled == FALSE)
 		return TRUE;
@@ -445,55 +628,56 @@ BOOL FlushDirtyNodes(struct BlockCache *bc) {
 	if (IsMinListEmpty(&bc->dirty_list))
 		return TRUE;
 
-	ObtainSemaphore(&bc->cache_semaphore);
+	for (node = bc->dirty_list.mlh_TailPred; (pred = node->mln_Pred) != NULL; node = pred) {
+		brn = BRNFROMNODE(node);
 
-	SortCacheNodes(&bc->dirty_list);
+		sector = brn->range.first;
+		node   = brn->list.mlh_Head;
+		done   = 0;
+		todo   = brn->range.last - brn->range.first + 1;
 
-	NEWLIST(&write_list);
-	NEWLIST(&failed_write_list);
+		do {
+			buffer  = bc->write_buffer;
+			sectors = 0;
 
-	sectors = 0;
-	sector = -1;
-	buffer = NULL;
-	do {
-		node = (struct MinNode *)RemHead((struct List *)&bc->dirty_list);
-		if (node != NULL)
-			bcn = BCNFROMNODE(node);
-		else
-			bcn = NULL;
+			while (sectors < bc->write_buffer_size && (succ = node->mln_Succ) != NULL) {
+				bcn = BCNFROMNODE(node);
+				CopyMem(bcn->data, buffer, bc->sector_size);
+				buffer += bc->sector_size;
+				sectors++;
+				node = succ;
+			}
 
-		if (sectors > 0 && (bcn == NULL || sectors == bc->write_buffer_size ||
-			(sector + sectors) != bcn->sector))
-		{
-			LONG res;
-
-			res = CachedWriteBlocks(dio, sector, bc->write_buffer, sectors);
+			res = DeviceWriteBlocks(bc->dio_handle, sector, bc->write_buffer, sectors);
 			if (res == DIO_SUCCESS) {
-				for (node = write_list.mlh_Head; (succ = node->mln_Succ) != NULL; node = succ)
-					ClearDirty(bc, BCNFROMNODE(node));
+				sector += sectors;
+				done += sectors;
 			} else {
-				MoveMinList(&failed_write_list, &write_list);
 				errors++;
 			}
 
+			if (max_dirty_nodes && (bc->num_dirty_nodes - done) <= max_dirty_nodes)
+				break;
+		} while (res == DIO_SUCCESS && done < todo);
+
+		if (done > 0) {
+			ObtainSemaphore(&bc->cache_semaphore);
+
+			node    = brn->list.mlh_Head;
 			sectors = 0;
-		}
 
-		if (bcn != NULL) {
-			AddTail((struct List *)&write_list, (struct Node *)&bcn->node);
-
-			if (sectors++ == 0) {
-				sector = bcn->sector;
-				buffer = bc->write_buffer;
+			while (sectors < done && (succ = node->mln_Succ) != NULL) {
+				ClearDirty(bc, BCNFROMNODE(node));
+				sectors++;
+				node = succ;
 			}
 
-			CopyMem(bcn->data, buffer, bc->sector_size);
-			buffer += bc->sector_size;
-		}
-	} while (bcn != NULL);
-	MoveMinList(&bc->dirty_list, &failed_write_list);
+			ReleaseSemaphore(&bc->cache_semaphore);
 
-	ReleaseSemaphore(&bc->cache_semaphore);
+			if (max_dirty_nodes && bc->num_dirty_nodes <= max_dirty_nodes)
+				break;
+		}
+	}
 
 	return (errors == 0) ? TRUE : FALSE;
 }
