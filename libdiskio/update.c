@@ -61,32 +61,25 @@ static BOOL PickCommandSet(struct DiskIO *dio) {
 
 	if ((last_byte >> 32) != 0) {
 		if (dio->cmd_support & CMDSF_NSD_ETD64) {
-			DEBUGF("Using NSD ETD64 command set\n");
 			dio->read_cmd  = NSCMD_ETD_READ64;
 			dio->write_cmd = NSCMD_ETD_WRITE64;
 		} else if (dio->cmd_support & CMDSF_NSD_TD64) {
-			DEBUGF("Using NSD TD64 command set\n");
 			dio->read_cmd  = NSCMD_TD_READ64;
 			dio->write_cmd = NSCMD_TD_WRITE64;
 		} else if (dio->cmd_support & CMDSF_TD64) {
-			DEBUGF("Using unofficial TD64 command set\n");
 			dio->read_cmd  = TD_READ64;
 			dio->write_cmd = TD_WRITE64;
 		} else {
-			DEBUGF("No supported 64-bit command set found\n");
 			success = FALSE;
 		}
 	} else {
 		if (dio->cmd_support & CMDSF_ETD32) {
-			DEBUGF("Using ETD command set\n");
 			dio->read_cmd  = ETD_READ;
 			dio->write_cmd = ETD_WRITE;
 		} else if (dio->cmd_support & CMDSF_TD32) {
-			DEBUGF("Using CMD command set\n");
 			dio->read_cmd  = CMD_READ;
 			dio->write_cmd = CMD_WRITE;
 		} else {
-			DEBUGF("No supported 32-bit command set found\n");
 			success = FALSE;
 		}
 	}
@@ -148,10 +141,18 @@ static BOOL SetupDisk(struct DiskIO *dio, BOOL setup) {
 			}
 		} else goto out;
 
-		dio->rw_buffer = AllocPooled(dio->mempool, RW_BUFFER_SIZE << dio->sector_shift);
-		if (dio->rw_buffer == NULL) goto out;
+		if (dio->cache_enabled)
+			dio->read_buffer_size = (64UL * 1024UL) >> dio->sector_shift;
+		else
+			dio->read_buffer_size = 1;
+
+		dio->read_buffer = AllocPooled(dio->mempool, dio->read_buffer_size << dio->sector_shift);
+		if (dio->read_buffer == NULL) goto out;
 
 		if (dio->cache_enabled) {
+			dio->max_cached_read  = (64UL * 1024UL) >> dio->sector_shift;
+			dio->max_cached_write = (64UL * 1024UL) >> dio->sector_shift;
+
 			dio->block_cache = InitBlockCache(dio);
 			if (dio->block_cache == NULL) goto out;
 		}
@@ -168,7 +169,7 @@ out:
 void CleanupDisk(struct DiskIO *dio, BOOL cleanup) {
 	if (dio->block_cache != NULL) CleanupBlockCache(dio->block_cache);
 
-	if (dio->rw_buffer != NULL) FreePooled(dio->mempool, dio->rw_buffer, RW_BUFFER_SIZE << dio->sector_shift);
+	if (dio->read_buffer != NULL) FreePooled(dio->mempool, dio->read_buffer, dio->read_buffer_size << dio->sector_shift);
 
 	if (!cleanup) {
 		APTR  data_start;

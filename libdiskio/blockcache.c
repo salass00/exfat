@@ -19,15 +19,14 @@
 #include "diskio_internal.h"
 #include <SDI/SDI_hook.h>
 
+#define PERCENT_DIRTY 30
+
 static void ExpungeCacheNode(struct BlockCache *bc, struct BlockCacheNode *bcn) {
 	if (bcn != NULL) {
 		Remove((struct Node *)&bcn->node);
 		RemoveSplay(&bc->cache_tree, &bcn->splay);
 
-		if (bcn->dirty)
-			bc->num_dirty_nodes--;
-		else
-			bc->num_clean_nodes--;
+		if (bcn->dirty) bc->num_dirty_nodes--;
 
 		bc->num_cache_nodes--;
 
@@ -91,6 +90,9 @@ SAVEDS ASM int DiskIOMemHandler(
 
 struct BlockCache *InitBlockCache(struct DiskIO *dio) {
 	struct BlockCache *bc;
+	UQUAD disk_cache_size;
+	ULONG mem_cache_size;
+	ULONG min_cache_size;
 
 	DEBUGF("InitBlockCache(%#p)\n", dio);
 
@@ -102,7 +104,7 @@ struct BlockCache *InitBlockCache(struct DiskIO *dio) {
 
 	bc->dio_handle          = dio;
 	bc->sector_size         = dio->sector_size;
-	bc->rw_buffer           = dio->rw_buffer;
+	bc->sector_shift        = dio->sector_shift;
 	bc->write_cache_enabled = dio->write_cache_enabled;
 
 	NEWLIST(&bc->clean_list);
@@ -120,6 +122,40 @@ struct BlockCache *InitBlockCache(struct DiskIO *dio) {
 	bc->mempool = CreatePool(MEMF_PUBLIC, 4096, 1024);
 	if (bc->mempool == NULL)
 		goto cleanup;
+
+	/* 1% of total disk space */
+	disk_cache_size = (dio->total_sectors + 50) / 100;
+
+	/* 10% of total memory */
+	mem_cache_size = ((AvailMem(MEMF_FAST | MEMF_TOTAL) >> bc->sector_shift) + 5) / 10;
+
+	/* Minimum size is 1MB */
+	min_cache_size = (1024UL * 1024UL) >> bc->sector_shift;
+
+	if ((UQUAD)mem_cache_size < disk_cache_size)
+		bc->max_cache_nodes = mem_cache_size;
+	else
+		bc->max_cache_nodes = (ULONG)disk_cache_size;
+
+	if (bc->max_cache_nodes < min_cache_size)
+		bc->max_cache_nodes = min_cache_size;
+
+	bc->max_dirty_nodes = ((UQUAD)bc->max_cache_nodes * PERCENT_DIRTY + 50) / 100;
+
+	if (bc->write_cache_enabled) {
+		ULONG max_buffer_size;
+
+		max_buffer_size = (64UL * 1024UL) >> bc->sector_shift;
+
+		bc->write_buffer_size = bc->max_dirty_nodes;
+
+		if (bc->write_buffer_size > max_buffer_size)
+			bc->write_buffer_size = max_buffer_size;
+
+		bc->write_buffer = AllocPooled(bc->mempool, bc->write_buffer_size << bc->sector_shift);
+		if (bc->write_buffer == NULL)
+			goto cleanup;
+	}
 
 	AddMemHandler(&bc->mem_handler);
 
@@ -199,7 +235,6 @@ static BOOL ClearDirty(struct BlockCache *bc, struct BlockCacheNode *bcn) {
 	bcn->checksum = BlockChecksum(bcn->data, bc->sector_size);
 
 	AddHead((struct List *)&bc->clean_list, (struct Node *)&bcn->node);
-	bc->num_clean_nodes++;
 
 	return TRUE;
 }
@@ -209,7 +244,6 @@ static BOOL SetDirty(struct BlockCache *bc, struct BlockCacheNode *bcn) {
 		return FALSE;
 
 	Remove((struct Node *)&bcn->node);
-	bc->num_clean_nodes--;
 
 	bcn->dirty    = TRUE;
 	bcn->checksum = (ULONG)-1;
@@ -286,7 +320,7 @@ BOOL StoreCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 	} else if ((flags & SCN_UPDATE_ONLY) == 0) {
 		bcn = NULL;
 
-		if (bc->num_cache_nodes < MAX_CACHE_NODES) {
+		if (bc->num_cache_nodes < bc->max_cache_nodes) {
 			bcn = AllocPooled(bc->mempool, sizeof(struct BlockCacheNode));
 			if (bcn != NULL) {
 				bcn->data = AllocPooled(bc->mempool, bc->sector_size);
@@ -306,7 +340,6 @@ BOOL StoreCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 				RemoveSplay(&bc->cache_tree, &bcn->splay);
 
 				bc->num_cache_nodes--;
-				bc->num_clean_nodes--;
 			}
 		}
 
@@ -323,7 +356,6 @@ BOOL StoreCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 			AddHead((struct List *)&bc->clean_list, (struct Node *)&bcn->node);
 
 			bc->num_cache_nodes++;
-			bc->num_clean_nodes++;
 		}
 	}
 
@@ -348,7 +380,7 @@ BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 	if (sn != NULL) {
 		bcn = BCNFROMSPLAY(sn);
 
-		if (bcn->dirty == FALSE && bc->num_dirty_nodes < MAX_DIRTY_NODES)
+		if (bcn->dirty == FALSE && bc->num_dirty_nodes < bc->max_dirty_nodes)
 			SetDirty(bc, bcn);
 
 		if (bcn->dirty) {
@@ -358,10 +390,10 @@ BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 		}
 
 		CacheHit(bc, bcn);
-	} else if (bc->num_dirty_nodes < MAX_DIRTY_NODES) {
+	} else if (bc->num_dirty_nodes < bc->max_dirty_nodes) {
 		bcn = NULL;
 
-		if (bc->num_cache_nodes < MAX_CACHE_NODES) {
+		if (bc->num_cache_nodes < bc->max_cache_nodes) {
 			bcn = AllocPooled(bc->mempool, sizeof(struct BlockCacheNode));
 			if (bcn != NULL) {
 				bcn->data = AllocPooled(bc->mempool, bc->sector_size);
@@ -381,7 +413,6 @@ BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 				RemoveSplay(&bc->cache_tree, &bcn->splay);
 
 				bc->num_cache_nodes--;
-				bc->num_clean_nodes--;
 			}
 		}
 
@@ -458,12 +489,12 @@ BOOL FlushDirtyNodes(struct BlockCache *bc) {
 		else
 			bcn = NULL;
 
-		if (sectors > 0 && (bcn == NULL || sectors == RW_BUFFER_SIZE ||
+		if (sectors > 0 && (bcn == NULL || sectors == bc->write_buffer_size ||
 			(sector + sectors) != bcn->sector))
 		{
 			LONG res;
 
-			res = CachedWriteBlocks(dio, sector, bc->rw_buffer, sectors);
+			res = CachedWriteBlocks(dio, sector, bc->write_buffer, sectors);
 			if (res == DIO_SUCCESS) {
 				for (node = write_list.mlh_Head; (succ = node->mln_Succ) != NULL; node = succ)
 					ClearDirty(bc, BCNFROMNODE(node));
@@ -480,7 +511,7 @@ BOOL FlushDirtyNodes(struct BlockCache *bc) {
 
 			if (sectors++ == 0) {
 				sector = bcn->sector;
-				buffer = bc->rw_buffer;
+				buffer = bc->write_buffer;
 			}
 
 			CopyMem(bcn->data, buffer, bc->sector_size);

@@ -24,22 +24,22 @@ int DIO_ReadBytes(struct DiskIO *dio, UQUAD offset, APTR buffer, ULONG bytes)
 
 	if (dio == NULL || dio->disk_ok == FALSE) return DIO_ERROR_UNSPECIFIED;
 
-	APTR sector_buffer = dio->rw_buffer;
+	APTR sector_buffer = dio->read_buffer;
 	UQUAD block = offset >> dio->sector_shift;
 	ULONG boffs = offset & dio->sector_mask;
 	ULONG blocks, blen;
 	int res = DIO_SUCCESS;
 
 	do {
-		if (dio->cache_enabled && MAX_READ_AHEAD > 1) {
+		if (dio->cache_enabled && dio->read_buffer_size > 1) {
 			blocks = (boffs + bytes + dio->sector_mask) >> dio->sector_shift;
-			while (blocks < MAX_READ_AHEAD && (block + blocks) < dio->total_sectors &&
+			while (blocks < dio->read_buffer_size && (block + blocks) < dio->total_sectors &&
 				ReadCacheNode(dio->block_cache, block + blocks, NULL, 0) == FALSE)
 			{
 				blocks++;
 			}
 			blen = blocks << dio->sector_shift;
-			if (blocks <= MAX_READ_AHEAD) {
+			if (blocks <= dio->read_buffer_size) {
 				res = CachedReadBlocks(dio, block, sector_buffer, blocks);
 				if (res) break;
 				CopyMem(sector_buffer + boffs, buffer, bytes);

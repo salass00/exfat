@@ -25,7 +25,7 @@ int DIO_WriteBytes(struct DiskIO *dio, UQUAD offset, CONST_APTR buffer, ULONG by
 
 	if (dio->read_only) return DIO_ERROR_READONLY;
 
-	APTR sector_buffer = NULL;
+	APTR sector_buffer = dio->read_buffer;
 	UQUAD block = offset >> dio->sector_shift;
 	ULONG boffs = offset & dio->sector_mask;
 	int res = DIO_SUCCESS;
@@ -33,8 +33,6 @@ int DIO_WriteBytes(struct DiskIO *dio, UQUAD offset, CONST_APTR buffer, ULONG by
 	do {
 		if (boffs) {
 			ULONG blen = MIN(dio->sector_size - boffs, bytes);
-			if ((sector_buffer = AllocPooled(dio->mempool, dio->sector_size)) == NULL)
-				return TDERR_NoMem;
 			res = CachedReadBlocks(dio, block, sector_buffer, 1);
 			if (res) break;
 			CopyMem((APTR)buffer, sector_buffer + boffs, blen);
@@ -56,8 +54,6 @@ int DIO_WriteBytes(struct DiskIO *dio, UQUAD offset, CONST_APTR buffer, ULONG by
 		}
 
 		if (bytes) {
-			if (sector_buffer == NULL && (sector_buffer = AllocPooled(dio->mempool, dio->sector_size)) == NULL)
-				return TDERR_NoMem;
 			res = CachedReadBlocks(dio, block, sector_buffer, 1);
 			if (res) break;
 			CopyMem((APTR)buffer, sector_buffer, bytes);
@@ -65,8 +61,6 @@ int DIO_WriteBytes(struct DiskIO *dio, UQUAD offset, CONST_APTR buffer, ULONG by
 			if (res) break;
 		}
 	} while (0);
-
-	FreePooled(dio->mempool, sector_buffer, dio->sector_size);
 
 	if (res) DEBUGF("DIO_WriteBytes failed - io error %d\n", res);
 

@@ -82,26 +82,22 @@ typedef struct { } LABEL;
 typedef char LABEL;
 #endif
 
-#define MAX_CACHE_NODES  4096
-#define MAX_DIRTY_NODES  1024
-#define RW_BUFFER_SIZE   128
-#define MAX_READ_AHEAD   128
-#define MAX_CACHED_READ  128
-#define MAX_CACHED_WRITE 128
-
 struct BlockCache {
 	struct MinNode         node;
 	struct DiskIO         *dio_handle;
 	APTR                   mempool;
 	ULONG                  sector_size;
+	ULONG                  sector_shift;
 	struct SignalSemaphore cache_semaphore;
 	struct MinList         clean_list;
 	struct MinList         dirty_list;
 	struct Splay          *cache_tree;
-	ULONG                  num_clean_nodes;
 	ULONG                  num_dirty_nodes;
 	ULONG                  num_cache_nodes;
-	APTR                   rw_buffer;
+	ULONG                  max_dirty_nodes;
+	ULONG                  max_cache_nodes;
+	APTR                   write_buffer;
+	ULONG                  write_buffer_size;
 	struct Interrupt       mem_handler;
 	BOOL                   write_cache_enabled;
 };
@@ -149,7 +145,10 @@ struct DiskIO {
 
 	/* The following fields are always (re)initialised on Update(). */
 	LABEL              UPDATE_DATA_START;
-	APTR               rw_buffer;
+	APTR               read_buffer;
+	ULONG              read_buffer_size;
+	ULONG              max_cached_read;
+	ULONG              max_cached_write;
 	struct BlockCache *block_cache;
 	ULONG              disk_id;
 	UQUAD              disk_size;

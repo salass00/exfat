@@ -33,7 +33,7 @@ LONG CachedReadBlocks(struct DiskIO *dio, UQUAD block, APTR buffer, ULONG blocks
 	if (blocks == 0)
 		return DIO_SUCCESS;
 
-	if (MAX_CACHED_READ && blocks > MAX_CACHED_READ) {
+	if (dio->max_cached_read && blocks > dio->max_cached_read) {
 		res = DeviceReadBlocks(dio, block, buffer, blocks);
 		if (res == DIO_SUCCESS) {
 			do {
@@ -86,7 +86,7 @@ LONG CachedWriteBlocks(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG
 	if (blocks == 0)
 		return DIO_SUCCESS;
 
-	if (MAX_CACHED_WRITE && blocks > MAX_CACHED_WRITE)
+	if (dio->max_cached_write && blocks > dio->max_cached_write)
 		bigwrite = TRUE;
 
 	if (dio->write_cache_enabled == FALSE || bigwrite) {
@@ -107,7 +107,7 @@ LONG CachedWriteBlocks(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG
 	} else {
 		ULONG uncached = 0;
 
-		if ((bc->num_dirty_nodes + blocks) >= MAX_DIRTY_NODES)
+		if ((bc->num_dirty_nodes + blocks) >= bc->max_dirty_nodes)
 			FlushDirtyNodes(bc);
 
 		do {
