@@ -17,76 +17,8 @@
  */
 
 #include "diskio_internal.h"
-#include <SDI/SDI_hook.h>
 
 #define PERCENT_DIRTY 30
-
-static void ExpungeCacheNode(struct BlockCache *bc, struct BlockCacheNode *bcn) {
-	if (bcn != NULL) {
-		Remove((struct Node *)&bcn->node);
-		RemoveSplay(&bc->cache_tree, &bcn->splay);
-
-		if (bcn->dirty) bc->num_dirty_nodes--;
-
-		bc->num_cache_nodes--;
-
-		FreePooled(bc->mempool, bcn->data, bc->sector_size);
-		FreePooled(bc->mempool, bcn, sizeof(struct BlockCacheNode));
-	}
-}
-
-#ifdef __AROS__
-AROS_UFH5(int, DiskIOMemHandler,
-	AROS_UFHA(APTR, data, A1),
-	AROS_UFHA(APTR, code, A5),
-	AROS_UFHA(struct ExecBase *, SysBase, A6),
-	AROS_UFHA(APTR, mask, D1),
-	AROS_UFHA(APTR, custom, A0))
-{
-	AROS_USERFUNC_INIT
-#else
-SAVEDS ASM int DiskIOMemHandler(
-	REG(a6, struct ExecBase *SysBase),
-	REG(a0, APTR custom),
-	REG(a1, APTR data))
-{
-#endif
-	struct MemHandlerData *memh = custom;
-	struct BlockCache *bc = data;
-	struct MinNode *node, *pred;
-	ULONG freed, goal;
-	BOOL done;
-
-	DEBUGF("DiskIOMemHandler(%#p, %#p, %#p)\n", SysBase, memh, bc);
-
-	if (!AttemptSemaphore(&bc->cache_semaphore))
-		return MEM_DID_NOTHING;
-
-	freed = 0;
-	goal = memh->memh_RequestSize;
-	for (node = bc->clean_list.mlh_TailPred; (pred = node->mln_Pred) != NULL; node = pred) {
-		ExpungeCacheNode(bc, BCNFROMNODE(node));
-		freed += bc->sector_size;
-
-		if (freed >= goal)
-			break;
-	}
-
-	done = IsMinListEmpty(&bc->clean_list);
-
-	ReleaseSemaphore(&bc->cache_semaphore);
-
-	if (freed == 0)
-		return MEM_DID_NOTHING;
-	else if (done)
-		return MEM_ALL_DONE;
-	else
-		return MEM_TRY_AGAIN;
-
-#ifdef __AROS__
-	AROS_USERFUNC_EXIT
-#endif
-}
 
 struct BlockCache *InitBlockCache(struct DiskIO *dio) {
 	struct BlockCache *bc;
@@ -180,6 +112,20 @@ void CleanupBlockCache(struct BlockCache *bc) {
 		DeletePool(bc->mempool);
 
 		FreePooled(dio->mempool, bc, sizeof(*bc));
+	}
+}
+
+void ExpungeCacheNode(struct BlockCache *bc, struct BlockCacheNode *bcn) {
+	if (bcn != NULL) {
+		Remove((struct Node *)&bcn->node);
+		RemoveSplay(&bc->cache_tree, &bcn->splay);
+
+		if (bcn->dirty) bc->num_dirty_nodes--;
+
+		bc->num_cache_nodes--;
+
+		FreePooled(bc->mempool, bcn->data, bc->sector_size);
+		FreePooled(bc->mempool, bcn, sizeof(struct BlockCacheNode));
 	}
 }
 

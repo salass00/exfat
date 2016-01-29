@@ -202,10 +202,26 @@ LONG CachedWriteBlocks(struct DiskIO *dio, UQUAD block, CONST_APTR buffer, ULONG
 /* blockcache.c */
 struct BlockCache *InitBlockCache(struct DiskIO *dio);
 void CleanupBlockCache(struct BlockCache *bc);
+void ExpungeCacheNode(struct BlockCache *bc, struct BlockCacheNode *bcn);
 BOOL ReadCacheNode(struct BlockCache *bc, UQUAD sector, APTR buffer, ULONG flags);
 BOOL StoreCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULONG flags);
 BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULONG flags);
 BOOL FlushDirtyNodes(struct BlockCache *bc);
+
+/* memhandler.c */
+#ifdef __AROS__
+AROS_UFP5(int, DiskIOMemHandler,
+	AROS_UFPA(APTR, data, A1),
+	AROS_UFPA(APTR, code, A5),
+	AROS_UFPA(struct ExecBase *, SysBase, A6),
+	AROS_UFPA(APTR, mask, D1),
+	AROS_UFPA(APTR, custom, A0));
+#else
+SAVEDS ASM int DiskIOMemHandler(
+	REG(a6, struct ExecBase *SysBase),
+	REG(a0, APTR custom),
+	REG(a1, APTR data));
+#endif
 
 /* mergesort.c */
 void SortCacheNodes(struct MinList *list);
