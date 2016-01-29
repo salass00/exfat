@@ -37,8 +37,9 @@ SAVEDS ASM int DiskIOMemHandler(
 	struct MemHandlerData *memh = custom;
 	struct BlockCache *bc = data;
 	struct MinNode *node, *pred;
+	struct MinList *list;
 	ULONG freed, goal;
-	BOOL done;
+	int i;
 
 	DEBUGF("DiskIOMemHandler(%#p, %#p, %#p)\n", SysBase, memh, bc);
 
@@ -47,24 +48,33 @@ SAVEDS ASM int DiskIOMemHandler(
 
 	freed = 0;
 	goal = memh->memh_RequestSize;
-	for (node = bc->clean_list.mlh_TailPred; (pred = node->mln_Pred) != NULL; node = pred) {
-		ExpungeCacheNode(bc, BCNFROMNODE(node));
-		freed += bc->sector_size;
+	for (i = 0; i < 2; i++) {
+		switch (i) {
+			case 0:
+				list = &bc->probation_list;
+				break;
+			default:
+				list = &bc->protected_list;
+				break;
+		}
+
+		for (node = list->mlh_TailPred; (pred = node->mln_Pred) != NULL; node = pred) {
+			ExpungeCacheNode(bc, BCNFROMNODE(node));
+			freed += bc->sector_size;
+		}
 
 		if (freed >= goal)
 			break;
 	}
 
-	done = IsMinListEmpty(&bc->clean_list);
-
 	ReleaseSemaphore(&bc->cache_semaphore);
 
 	if (freed == 0)
 		return MEM_DID_NOTHING;
-	else if (done)
-		return MEM_ALL_DONE;
-	else
+	else if (i < 2)
 		return MEM_TRY_AGAIN;
+	else
+		return MEM_ALL_DONE;
 
 #ifdef __AROS__
 	AROS_USERFUNC_EXIT

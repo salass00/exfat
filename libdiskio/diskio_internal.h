@@ -89,11 +89,14 @@ struct BlockCache {
 	ULONG                  sector_size;
 	ULONG                  sector_shift;
 	struct SignalSemaphore cache_semaphore;
-	struct MinList         clean_list;
+	struct MinList         probation_list;
+	struct MinList         protected_list;
 	struct MinList         dirty_list;
 	struct Splay          *cache_tree;
+	ULONG                  num_protected_nodes;
 	ULONG                  num_dirty_nodes;
 	ULONG                  num_cache_nodes;
+	ULONG                  max_protected_nodes;
 	ULONG                  max_dirty_nodes;
 	ULONG                  max_cache_nodes;
 	APTR                   write_buffer;
@@ -106,7 +109,7 @@ struct BlockCacheNode {
 	struct Splay   splay;
 	struct MinNode node;
 	UQUAD          sector;
-	UBYTE          dirty;
+	UBYTE          type;
 	UBYTE          pad[3];
 	APTR           data;
 	ULONG          checksum;
@@ -114,6 +117,12 @@ struct BlockCacheNode {
 
 #define BCNFROMSPLAY(s) container_of(s, struct BlockCacheNode, splay)
 #define BCNFROMNODE(n)  container_of(n, struct BlockCacheNode, node)
+
+enum {
+	BCN_PROBATION = 1,
+	BCN_PROTECTED,
+	BCN_DIRTY
+};
 
 struct DiskIO {
 	/* These fields are initialised on Setup() only. */
