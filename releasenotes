@@ -8,10 +8,10 @@ exfat-handler 53.2 (20.12.2015)
 - Updated exfat code from version 1.1.1 to version 1.2.3.
 
 
-exfat-handler 53.3 (xx.xx.2016)
+exfat-handler 53.3 (3.2.2016)
 
-- Significant rewrite of the disk I/O layer to be more like the latest AmigaOS
-  4.x version.
+- Disk I/O layer now uses a segmented LRU for the read cache and automatically
+  sorted block ranges for the write cache.
 
 - Replaced cache semaphore with a simple boolean variable that indicates to
   the memhandler when the cache is being accessed.
