@@ -48,8 +48,6 @@ struct BlockCache *InitBlockCache(struct DiskIO *dio) {
 	NEWLIST(&bc->protected_list);
 	NEWLIST(&bc->dirty_list);
 
-	InitSemaphore(&bc->cache_semaphore);
-
 	bc->mem_handler.is_Node.ln_Type = NT_INTERRUPT;
 	bc->mem_handler.is_Node.ln_Pri  = 50;
 	bc->mem_handler.is_Node.ln_Name = (char *)dio->devname;
@@ -500,7 +498,7 @@ BOOL ReadCacheNode(struct BlockCache *bc, UQUAD sector, APTR buffer, ULONG flags
 
 	DEBUGF("ReadCacheNode(%#p, %llu, %#p, 0x%08x)\n", bc, sector, buffer, flags);
 
-	ObtainSemaphore(&bc->cache_semaphore);
+	bc->cache_busy = TRUE;
 
 	bcn = FindSector(&bc->cache_tree, sector);
 	if (bcn != NULL) {
@@ -526,7 +524,7 @@ BOOL ReadCacheNode(struct BlockCache *bc, UQUAD sector, APTR buffer, ULONG flags
 		}
 	}
 
-	ReleaseSemaphore(&bc->cache_semaphore);
+	bc->cache_busy = FALSE;
 
 	return result;
 }
@@ -537,7 +535,7 @@ BOOL StoreCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 
 	DEBUGF("StoreCacheNode(%#p, %llu, %#p, 0x%08x)\n", bc, sector, buffer, flags);
 
-	ObtainSemaphore(&bc->cache_semaphore);
+	bc->cache_busy = TRUE;
 
 	bcn = FindSector(&bc->cache_tree, sector);
 	if (bcn != NULL) {
@@ -564,7 +562,7 @@ BOOL StoreCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 		}
 	}
 
-	ReleaseSemaphore(&bc->cache_semaphore);
+	bc->cache_busy = FALSE;
 
 	return result;
 }
@@ -578,7 +576,7 @@ BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 	if (bc->write_cache_enabled == FALSE)
 		return FALSE;
 
-	ObtainSemaphore(&bc->cache_semaphore);
+	bc->cache_busy = TRUE;
 
 	bcn = FindSector(&bc->cache_tree, sector);
 	if (bcn != NULL) {
@@ -605,7 +603,7 @@ BOOL WriteCacheNode(struct BlockCache *bc, UQUAD sector, CONST_APTR buffer, ULON
 		}
 	}
 
-	ReleaseSemaphore(&bc->cache_semaphore);
+	bc->cache_busy = FALSE;
 
 	return result;
 }
@@ -661,7 +659,7 @@ BOOL FlushDirtyNodes(struct BlockCache *bc, ULONG max_dirty_nodes) {
 		} while (res == DIO_SUCCESS && done < todo);
 
 		if (done > 0) {
-			ObtainSemaphore(&bc->cache_semaphore);
+			bc->cache_busy = TRUE;
 
 			node    = brn->list.mlh_Head;
 			sectors = 0;
@@ -672,7 +670,7 @@ BOOL FlushDirtyNodes(struct BlockCache *bc, ULONG max_dirty_nodes) {
 				node = succ;
 			}
 
-			ReleaseSemaphore(&bc->cache_semaphore);
+			bc->cache_busy = FALSE;
 
 			if (max_dirty_nodes && bc->num_dirty_nodes <= max_dirty_nodes)
 				break;

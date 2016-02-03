@@ -90,7 +90,6 @@ struct BlockCache {
 	ULONG                  sector_shift;
 	APTR                   write_buffer;
 	ULONG                  write_buffer_size;
-	struct SignalSemaphore cache_semaphore;
 	struct MinList         probation_list;
 	struct MinList         protected_list;
 	struct MinList         dirty_list;
@@ -105,6 +104,7 @@ struct BlockCache {
 	ULONG                  high_threshold;
 	ULONG                  low_threshold;
 	struct Interrupt       mem_handler;
+	BOOL                   cache_busy;
 	BOOL                   write_cache_enabled;
 };
 

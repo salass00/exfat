@@ -13,3 +13,6 @@ exfat-handler 53.3 (xx.xx.2016)
 - Significant rewrite of the disk I/O layer to be more like the latest AmigaOS
   4.x version.
 
+- Replaced cache semaphore with a simple boolean variable that indicates to
+  the memhandler when the cache is being accessed.
+

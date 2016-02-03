@@ -43,8 +43,10 @@ SAVEDS ASM int DiskIOMemHandler(
 
 	DEBUGF("DiskIOMemHandler(%#p, %#p, %#p)\n", SysBase, memh, bc);
 
-	if (!AttemptSemaphore(&bc->cache_semaphore))
+	if (bc->cache_busy)
 		return MEM_DID_NOTHING;
+
+	bc->cache_busy = TRUE;
 
 	freed = 0;
 	goal = memh->memh_RequestSize;
@@ -67,7 +69,7 @@ SAVEDS ASM int DiskIOMemHandler(
 			break;
 	}
 
-	ReleaseSemaphore(&bc->cache_semaphore);
+	bc->cache_busy = FALSE;
 
 	if (freed == 0)
 		return MEM_DID_NOTHING;
