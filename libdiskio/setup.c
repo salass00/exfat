@@ -156,11 +156,21 @@ struct DiskIO *DIO_Setup(CONST_STRPTR name, const struct TagItem *tags) {
 		dio->total_sectors   = dio->partition_size >> dio->sector_shift;
 	}
 
+	nsdqr.DevQueryFormat = 0;
+	nsdqr.SizeAvailable  = 0;
+
 	iotd->iotd_Req.io_Command = NSCMD_DEVICEQUERY;
-	iotd->iotd_Req.io_Data = &nsdqr;
-	iotd->iotd_Req.io_Length = sizeof(nsdqr);
-	bzero(&nsdqr, sizeof(nsdqr)); /* Required for usbscsi.device */
+	iotd->iotd_Req.io_Data    = &nsdqr;
+	iotd->iotd_Req.io_Length  = sizeof(nsdqr);
 	if (DoIO((struct IORequest *)iotd) == 0) {
+		if (iotd->iotd_Req.io_Actual < 16 ||
+			iotd->iotd_Req.io_Actual != nsdqr.SizeAvailable ||
+			iotd->iotd_Req.io_Actual > sizeof(nsdqr))
+		{
+			error = DIO_ERROR_NSDQUERY;
+			goto cleanup;
+		}
+
 		if (nsdqr.DeviceType != NSDEVTYPE_TRACKDISK) {
 			error = DIO_ERROR_NSDQUERY;
 			goto cleanup;
