@@ -1,11 +1,3 @@
-Short:        A free exFAT file system implementation
-Author:       Andrew Nayenko, Fredrik Wikstrom
-Uploader:     Fredrik Wikstrom <fredrik@a500.org>
-Type:         disk/misc
-Version:      xx.xx
-Requires:     xxx
-Architecture: xxx
-
 This project aims to provide a full-featured exFAT file system implementation
 for Unix-like systems.
 

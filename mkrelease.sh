@@ -16,14 +16,19 @@ NUMVERS=`echo "${FULLVERS}" | cut -d' ' -f2`
 rm -rf ${DESTDIR}
 mkdir -p ${DESTDIR}/exfatfs-${NUMVERS}/L
 
-cp -p exfatfs.readme ${DESTDIR}/exfatfs-${NUMVERS}
 cp -p COPYING ${DESTDIR}/exfatfs-${NUMVERS}
 cp -p releasenotes ${DESTDIR}/exfatfs-${NUMVERS}
 cp -p exfat-handler ${DESTDIR}/exfatfs-${NUMVERS}/L
 
-sed -i "s_^Version:      xx.xx_Version:      ${NUMVERS}_" ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
-sed -i "s_^Requires:     xxx_Requires:     util/libs/filesysbox.${HOST}.lha_" ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
-sed -i "s_^Architecture: xxx_Architecture: ${HOST}_" ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
+echo "Short:        A free exFAT file system implementation" > ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
+echo "Author:       Andrew Nayenko, Fredrik Wikstrom" >> ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
+echo "Uploader:     Fredrik Wikstrom <fredrik@a500.org>" >> ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
+echo "Type:         disk/misc" >> ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
+echo "Version:      ${NUMVERS}" >> ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
+echo "Requires:     util/libs/filesysbox.${HOST}.lha" >> ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
+echo "Architecture: ${HOST}" >> ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
+echo "" >> ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
+cat README >> ${DESTDIR}/exfatfs-${NUMVERS}/exfatfs.readme
 
 rm -f exfatfs.${HOST}.7z
 7za u exfatfs.${HOST}.7z ./${DESTDIR}/exfatfs-${NUMVERS}
