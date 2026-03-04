@@ -1,6 +1,7 @@
 # Ignore object and archive files
 *.[oa]
 # Ignore generated exe file
-exfat-handler
+bin
+obj
 # Ignore release archives
 *.7z

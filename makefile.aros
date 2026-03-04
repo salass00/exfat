@@ -1,0 +1,126 @@
+CPU     ?= i386
+SYSROOT ?=
+
+CC     = $(CPU)-aros-gcc
+AR     = $(CPU)-aros-ar
+RANLIB = $(CPU)-aros-ranlib
+
+TARGET  = exfat-handler
+VERSION = 53
+
+INCLUDES = -I. -I./libexfat -I./libdiskio -I./amigaos_support/include
+DEFINES  = -DID_EXFAT_DISK=0x46415458
+WARNINGS = -Werror -Wall -Wwrite-strings
+
+CFLAGS  = -std=gnu99 -O2 -g -fomit-frame-pointer \
+          -fno-builtin-printf -fno-builtin-fprintf -fno-builtin-fputs \
+          $(INCLUDES) $(DEFINES) $(WARNINGS)
+LDFLAGS = -g -nostartfiles
+LIBS    = -ldebug
+
+ifneq (,$(SYSROOT))
+	CFLAGS  := --sysroot=$(SYSROOT) $(CFLAGS)
+	LDFLAGS := --sysroot=$(SYSROOT) $(LDFLAGS)
+endif
+
+LIBEXFAT   = libexfat.a
+LIBDISKIO  = libdiskio.a
+LIBSUPPORT = libamigaos_support.a
+
+LIBEXFAT_SRCS = \
+	libexfat/amiga_io.c \
+	libexfat/cluster.c \
+	libexfat/amiga_log.c \
+	libexfat/lookup.c \
+	libexfat/mount.c \
+	libexfat/node.c \
+	libexfat/time.c \
+	libexfat/utf.c \
+	libexfat/utils.c \
+
+LIBDISKIO_SRCS = \
+	libdiskio/setup.c \
+	libdiskio/cleanup.c \
+	libdiskio/update.c \
+	libdiskio/query.c \
+	libdiskio/readbytes.c \
+	libdiskio/writebytes.c \
+	libdiskio/flushiocache.c \
+	libdiskio/deviceio.c \
+	libdiskio/cachedio.c \
+	libdiskio/blockcache.c \
+	libdiskio/memhandler.c \
+	libdiskio/splay.c
+
+LIBSUPPORT_SRCS = \
+	amigaos_support/debugf.c \
+	amigaos_support/malloc.c \
+	amigaos_support/printf.c \
+	amigaos_support/puts.c \
+	amigaos_support/strdup.c
+
+SRCS = \
+	exfat-startup_amigaos.c \
+	fuse/main.c \
+	mkfs/mkexfat.c \
+	mkfs/vbr.c \
+	mkfs/fat.c \
+	mkfs/cbm.c \
+	mkfs/uct.c \
+	mkfs/rootdir.c \
+	mkfs/uctc.c
+
+LIBEXFAT_OBJS = $(addprefix obj/$(CPU)/,$(LIBEXFAT_SRCS:.c=.o))
+LIBDISKIO_OBJS = $(addprefix obj/$(CPU)/,$(LIBDISKIO_SRCS:.c=.o))
+LIBSUPPORT_OBJS = $(addprefix obj/$(CPU)/,$(LIBSUPPORT_SRCS:.c=.o))
+OBJS = $(addprefix obj/$(CPU)/,$(SRCS:.c=.o))
+
+DEPS = $(LIBEXFAT_OBJS:.o=.d) \
+       $(LIBDISKIO_OBJS:.o=.d) \
+       $(LIBSUPPORT_OBJS:.o=.d) \
+       $(OBJS:.o=.d)
+
+.PHONY: all
+all: bin/$(TARGET).$(CPU) bin/$(TARGET).$(CPU).debug
+
+-include $(DEPS)
+
+obj/$(CPU)/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) -MM -MP -MT $(@:.o=.d) -MT $@ -MF $(@:.o=.d) $(CFLAGS) $<
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/$(CPU)/amigaos_support/malloc.o: CFLAGS += -fno-builtin
+
+bin/$(LIBEXFAT).$(CPU): $(LIBEXFAT_OBJS)
+	@mkdir -p $(dir $@)
+	$(AR) -crv $@ $^
+	$(RANLIB) $@
+
+bin/$(LIBDISKIO).$(CPU): $(LIBDISKIO_OBJS)
+	@mkdir -p $(dir $@)
+	$(AR) -crv $@ $^
+	$(RANLIB) $@
+
+bin/$(LIBSUPPORT).$(CPU): $(LIBSUPPORT_OBJS)
+	@mkdir -p $(dir $@)
+	$(AR) -crv $@ $^
+	$(RANLIB) $@
+
+bin/$(TARGET).$(CPU).debug: $(OBJS) bin/$(LIBEXFAT).$(CPU) bin/$(LIBDISKIO).$(CPU) bin/$(LIBSUPPORT).$(CPU)
+	@mkdir -p $(dir $@)
+	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+bin/$(TARGET).$(CPU): $(OBJS) bin/$(LIBEXFAT).$(CPU) bin/$(LIBDISKIO).$(CPU) bin/$(LIBSUPPORT).$(CPU)
+	@mkdir -p $(dir $@)
+	$(CC) -s $(LDFLAGS) -o $@ $^ $(LIBS)
+
+.PHONY: clean
+clean:
+	rm -rf bin obj
+
+.PHONY: revision
+revision:
+	bumprev -e is $(VERSION) exFATFileSystem
+	bumprev -e is $(VERSION) exfat-handler
+
