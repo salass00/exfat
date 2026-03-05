@@ -55,8 +55,7 @@ LIBSUPPORT_SRCS = \
 	amigaos_support/debugf.c \
 	amigaos_support/kputstr.c \
 	amigaos_support/malloc.c \
-	amigaos_support/printf.c \
-	amigaos_support/puts.c \
+	amigaos_support/snprintf.c \
 	amigaos_support/strdup.c \
 	amigaos_support/strlcpy.c
 
