@@ -124,6 +124,22 @@ static int create(struct exfat_dev* dev)
 	return 0;
 }
 
+#if defined(AMIGA) || defined(__AROS__)
+int mkfs(struct exfat_dev* dev, fbx_off_t volume_size)
+{
+	if (check_size(volume_size) != 0)
+		return 1;
+
+	if (erase(dev) != 0)
+		return 1;
+	if (create(dev) != 0)
+		return 1;
+	if (exfat_fsync(dev) != 0)
+		return 1;
+
+	return 0;
+}
+#else
 int mkfs(struct exfat_dev* dev, fbx_off_t volume_size)
 {
 	if (check_size(volume_size) != 0)
@@ -145,6 +161,7 @@ int mkfs(struct exfat_dev* dev, fbx_off_t volume_size)
 
 	return 0;
 }
+#endif
 
 fbx_off_t get_position(const struct fs_object* object)
 {
