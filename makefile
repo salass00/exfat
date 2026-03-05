@@ -11,7 +11,6 @@ DEFINES  = -DID_EXFAT_DISK=0x46415458
 WARNINGS = -Werror -Wall -Wwrite-strings
 
 CFLAGS  = -noixemul -std=gnu99 -O2 -g -fomit-frame-pointer \
-          -fno-builtin-printf -fno-builtin-fprintf -fno-builtin-fputs \
           $(INCLUDES) $(DEFINES) $(WARNINGS)
 LDFLAGS = -noixemul -g -nostartfiles
 LIBS    =
