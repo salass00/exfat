@@ -126,12 +126,42 @@ bin/$(LIBEXFAT).000: $(LIBEXFAT_OBJS_000)
 	$(AR) -crv $@ $^
 	$(RANLIB) $@
 
+bin/$(LIBEXFAT).020: $(LIBEXFAT_OBJS_020)
+	@mkdir -p $(dir $@)
+	$(AR) -crv $@ $^
+	$(RANLIB) $@
+
+bin/$(LIBEXFAT).060: $(LIBEXFAT_OBJS_060)
+	@mkdir -p $(dir $@)
+	$(AR) -crv $@ $^
+	$(RANLIB) $@
+
 bin/$(LIBDISKIO).000: $(LIBDISKIO_OBJS_000)
 	@mkdir -p $(dir $@)
 	$(AR) -crv $@ $^
 	$(RANLIB) $@
 
+bin/$(LIBDISKIO).020: $(LIBDISKIO_OBJS_020)
+	@mkdir -p $(dir $@)
+	$(AR) -crv $@ $^
+	$(RANLIB) $@
+
+bin/$(LIBDISKIO).060: $(LIBDISKIO_OBJS_060)
+	@mkdir -p $(dir $@)
+	$(AR) -crv $@ $^
+	$(RANLIB) $@
+
 bin/$(LIBSUPPORT).000: $(LIBSUPPORT_OBJS_000)
+	@mkdir -p $(dir $@)
+	$(AR) -crv $@ $^
+	$(RANLIB) $@
+
+bin/$(LIBSUPPORT).020: $(LIBSUPPORT_OBJS_020)
+	@mkdir -p $(dir $@)
+	$(AR) -crv $@ $^
+	$(RANLIB) $@
+
+bin/$(LIBSUPPORT).060: $(LIBSUPPORT_OBJS_060)
 	@mkdir -p $(dir $@)
 	$(AR) -crv $@ $^
 	$(RANLIB) $@
