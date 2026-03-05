@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2016 Fredrik Wikstrom <fredrik@a500.org>
+ * Copyright (c) 2015-2026 Fredrik Wikstrom <fredrik@a500.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@ AROS_UFH5(int, DiskIOMemHandler,
 {
 	AROS_USERFUNC_INIT
 #else
-SAVEDS ASM int DiskIOMemHandler(
+/*SAVEDS*/ ASM int DiskIOMemHandler(
 	REG(a6, struct ExecBase *SysBase),
 	REG(a0, APTR custom),
 	REG(a1, APTR data))

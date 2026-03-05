@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2016 Fredrik Wikstrom <fredrik@a500.org>
+ * Copyright (c) 2015-2026 Fredrik Wikstrom <fredrik@a500.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,22 +30,27 @@
 #include <proto/filesysbox.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include "splay.h"
+
+#ifndef __AROS__
+#include <SDI/SDI_compiler.h>
+#endif
 
 //#define DEBUG
 #define DISABLE_DOSTYPE_CHECK
 
-#ifndef NEWLIST
-#define NEWLIST(list) \
+#ifndef NEWMINLIST
+#define NEWMINLIST(list) \
 	do { \
-		((struct List *)(list))->lh_Head = (struct Node *)&((struct List *)(list))->lh_Tail; \
-		((struct List *)(list))->lh_Tail = NULL; \
-		((struct List *)(list))->lh_TailPred = (struct Node *)&((struct List *)(list))->lh_Head; \
+		(list)->mlh_Head = (struct MinNode *)&(list)->mlh_Tail; \
+		(list)->mlh_Tail = NULL; \
+		(list)->mlh_TailPred = (struct MinNode *)&(list)->mlh_Head; \
 	} while (0)
 #endif
 
 #ifndef IsMinListEmpty
-#define IsMinListEmpty(list) IsListEmpty((struct List *)list)
+#define IsMinListEmpty(list) ((list)->mlh_TailPred == (struct MinNode *)(list))
 #endif
 
 #ifndef TD_READ64
@@ -245,7 +250,7 @@ AROS_UFP5(int, DiskIOMemHandler,
 	AROS_UFPA(APTR, mask, D1),
 	AROS_UFPA(APTR, custom, A0));
 #else
-SAVEDS ASM int DiskIOMemHandler(
+/*SAVEDS*/ ASM int DiskIOMemHandler(
 	REG(a6, struct ExecBase *SysBase),
 	REG(a0, APTR custom),
 	REG(a1, APTR data));
