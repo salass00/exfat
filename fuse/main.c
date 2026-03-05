@@ -863,6 +863,8 @@ int main(int argc, char* argv[])
 #endif /* !defined(__AROS__) && !defined(AMIGA) */
 
 #if defined(__AROS__) || defined(AMIGA)
+#include <debugf.h>
+
 int exfat_main(struct Message *msg) {
 	int err;
 	const char* device = NULL;
@@ -870,7 +872,7 @@ int exfat_main(struct Message *msg) {
 	struct exfat_mount_data md;
 	struct FbxFS* fs = NULL;
 
-	printf("FUSE exfat %s\n", VERSION);
+	debugf("FUSE exfat %s\n", VERSION);
 
 	memset(&md, 0, sizeof(md));
 
