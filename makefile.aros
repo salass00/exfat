@@ -57,7 +57,8 @@ LIBSUPPORT_SRCS = \
 	amigaos_support/malloc.c \
 	amigaos_support/printf.c \
 	amigaos_support/puts.c \
-	amigaos_support/strdup.c
+	amigaos_support/strdup.c \
+	amigaos_support/strlcpy.c
 
 SRCS = \
 	exfat-startup_amigaos.c \
