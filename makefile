@@ -14,7 +14,7 @@ CFLAGS  = -noixemul -std=gnu99 -O2 -g -fomit-frame-pointer \
           -fno-builtin-printf -fno-builtin-fprintf -fno-builtin-fputs \
           $(INCLUDES) $(DEFINES) $(WARNINGS)
 LDFLAGS = -noixemul -g -nostartfiles
-LIBS    = -ldebug
+LIBS    =
 
 STRIPFLAGS = -R.comment
 
@@ -53,6 +53,7 @@ LIBDISKIO_SRCS = \
 
 LIBSUPPORT_SRCS = \
 	amigaos_support/debugf.c \
+	amigaos_support/kputstr.c \
 	amigaos_support/malloc.c \
 	amigaos_support/printf.c \
 	amigaos_support/puts.c \
@@ -136,15 +137,15 @@ bin/$(LIBSUPPORT).000: $(LIBSUPPORT_OBJS_000)
 	$(AR) -crv $@ $^
 	$(RANLIB) $@
 
-bin/$(TARGET).000.debug: $(OBJS) bin/$(LIBEXFAT).000 bin/$(LIBDISKIO).000 bin/$(LIBSUPPORT).000
+bin/$(TARGET).000.debug: $(OBJS_000) bin/$(LIBEXFAT).000 bin/$(LIBDISKIO).000 bin/$(LIBSUPPORT).000
 	@mkdir -p $(dir $@)
 	$(CC) $(ARCH_000) $(LDFLAGS) -o $@ $^ $(LIBS)
 
-bin/$(TARGET).020.debug: $(OBJS) bin/$(LIBEXFAT).020 bin/$(LIBDISKIO).020 bin/$(LIBSUPPORT).020
+bin/$(TARGET).020.debug: $(OBJS_020) bin/$(LIBEXFAT).020 bin/$(LIBDISKIO).020 bin/$(LIBSUPPORT).020
 	@mkdir -p $(dir $@)
 	$(CC) $(ARCH_020) $(LDFLAGS) -o $@ $^ $(LIBS)
 
-bin/$(TARGET).060.debug: $(OBJS) bin/$(LIBEXFAT).060 bin/$(LIBDISKIO).060 bin/$(LIBSUPPORT).060
+bin/$(TARGET).060.debug: $(OBJS_060) bin/$(LIBEXFAT).060 bin/$(LIBDISKIO).060 bin/$(LIBSUPPORT).060
 	@mkdir -p $(dir $@)
 	$(CC) $(ARCH_060) $(LDFLAGS) -o $@ $^ $(LIBS)
 
