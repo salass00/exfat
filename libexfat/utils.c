@@ -157,6 +157,7 @@ void exfat_humanize_bytes(uint64_t value, struct exfat_human_bytes* hb)
 	hb->unit = units[i];
 }
 
+#if !defined(AMIGA) && !defined(__AROS__)
 void exfat_print_info(const struct exfat_super_block* sb,
 		uint32_t free_clusters)
 {
@@ -177,3 +178,4 @@ void exfat_print_info(const struct exfat_super_block* sb,
 	exfat_humanize_bytes(avail_space, &hb);
 	printf("Available space      %10"PRIu64" %s\n", hb.value, hb.unit);
 }
+#endif
